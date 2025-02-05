@@ -643,3 +643,67 @@ workflow.add_conditional_edges(
 )
 workflow.add_edge("final_answer", END)
 sql_agent = workflow.compile()
+transform_user_question_system = """
+
+You will receive a user question and your job is to make the question more specific and clear.
+Try to make the question as simple as possible.
+
+"""
+
+transform_user_question_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", transform_user_question_system),
+        ("placeholder", "{messages}"),
+    ]
+)
+
+transform_user_question_llm = mini_llm.with_structured_output(TransformUserQuestion)
+
+selector_system = """
+You are provided with a user's natural language query alongside a list of table names and their corresponding descriptions. 
+Your task is to identify all tables that could potentially contribute to answering the query.
+You could also receive feedback from your last iteration of selecting tables. Take the feedback into account. In this case, select tables that you have not selected in the previous iteration.
+
+Instructions:
+
+Inclusiveness is Key:
+Err on the side of inclusion. If a table might be relevant—even indirectly—include it. When in doubt, select the table.
+
+Analytical Review: 
+Examine each table's name and description carefully.
+Consider potential joins or relationships: a table that seems marginal on its own may become crucial when combined with others.
+
+Evaluate Relevance:
+Identify keywords, data types, or any hints in the descriptions that suggest the table might hold useful data.
+Look for connections between tables (e.g., shared fields or related concepts) that might allow for joining to gather comprehensive data.
+
+Call the get_schema_tool to get the schema of these selected tables.
+"""
+
+selector_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", selector_system),
+        ("placeholder", "{messages}"),
+    ]
+)
+
+contextualiser_system = """
+You are a specialist at organising and structuring information and you have strong attention to detail.
+
+You will receive the following information:
+- A user question
+- A list of all tables and their descriptions in the database 
+- A list of selected relevant tables and their schemas. The schemas have a comment section that describes the table and the relationship with other tables.
+
+Your job is to organise the information from the selected tables and their schemas into a structured format and to eliminate fields in the schemas that are not relevant to the user question.
+When in doubt, keep the field. Retain the COMMENT section of the schema including all the joins information which is crucial. You can make this it's own section. Ensure that everything is detailed and clear and do not cut too much information.
+You should not try to answer the user question, just present the information in a clear and structured format.
+
+Output Format:
+- User Question: <The user question>
+- Tables and Schemas: 1. A description of the table. 2. The schema of the table. 3. The COMMENT section of the schema.
+- Key Relationships: <A list of key relationships between the tables including the join conditions>
+- Relevant Fields for the User Question: <A list of relevant fields for the user question>
+"""
+
+contextualiser_prompt = ChatPromptTemplate.from_messages(
