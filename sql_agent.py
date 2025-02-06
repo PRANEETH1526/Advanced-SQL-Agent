@@ -707,3 +707,119 @@ Output Format:
 """
 
 contextualiser_prompt = ChatPromptTemplate.from_messages(
+sufficient_tables_system = """ 
+You are an experienced and professional database administrator.
+
+You receive the schemas (including detailed table comments) of the tables selected by the Selector LLM along with the original user query. 
+Your job is to decide whether these tables are sufficient to generate an SQL query that can be executed to answer the user's query.
+If they are not sufficient, you must provide a clear explanation of what is missing and suggest additional tables.
+
+Instructions:
+
+Deep Schema and Comment Analysis:
+Carefully read the table COMMENTs, as they explain the information each table holds and describe relationships and join information with other tables.
+Examine the columns, keys (primary, foreign), and any other structural details in the schemas that is detailed.
+
+Identify Missing Tables from Comments:
+If the table COMMENTs mention any table names that were not already selected (i.e. the table is not in the list of schemas), consider those as necessary for answering the query.
+In such cases, output that the current selection is insufficient and explicitly list the missing table names as suggestions for the reason, indicating that they should be routed back to the Selector LLM for inclusion.
+
+Sufficiency Evaluation:
+Decide if the available tables, when appropriately joined together, can be used to generate an sql query that can be executed to answer the user's query.
+If this is the case, state that the selection is sufficient. When in doubt, just mark it as sufficient.
+If any critical tables (including those mentioned in comments) are missing, mark the decision as insufficient.
+
+Output Format:
+Sufficient: Return a boolean value (True or False) indicating whether the tables are sufficient. Return True if the tables are sufficient.
+Reason: Provide a detailed explanation of your reasoning. If the tables are insufficient, suggest any additional tables that might be relevant to the user query.
+"""
+
+sufficient_tables_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", sufficient_tables_system),
+        ("placeholder", "{messages}"),
+    ]
+)
+
+sufficient_tables_llm = llm.with_structured_output(SufficientTables)
+
+query_gen_system = """
+You are provided with a user question, a list of table names, schema summaries, join conditions, and any additional notes necessary for constructing a MariaDB SQL query. 
+Additionally, you may sometimes receive an error message indicating that the previously generated query failed upon execution. 
+
+Instructions:
+
+If you don't get an error message, generate an SQL query that is syntactically correct.
+
+Initial Query Generation:
+Analyze the Context: Use the provided context to understand the tables involved, their schemas, join conditions, and any filtering or grouping requirements needed to answer the user query.
+Construct the SQL Query: Generate a valid MariaDB SQL query that incorporates all necessary joins, filters, and calculations. Joins must use indexed fields.
+Include Inline Comments: Annotate the query to explain how various parts of the provided context are being utilized (e.g., why specific joins or filters are applied).
+Output Format: Return a single SQL statement. 
+
+If you get an error message, generate a new SQL query that is syntactically correct.
+
+Error Correction:
+Review the Error: If an error message is provided along with the context, analyze the error to determine the underlying issue (e.g., syntax errors, aliasing problems, missing join conditions).
+Modify the Query: Adjust the previously generated SQL query to correct the error while ensuring that it still meets the requirements derived from the context.
+Document the Correction: Include brief inline comments in the query to describe the changes made to address the error.
+Output Format: Return the corrected SQL query as a single statement. 
+
+Double check the MariaDB query for common mistakes, including:
+    - Using NOT IN with NULL values
+    - Using UNION when UNION ALL should have been used
+    - Using BETWEEN for exclusive ranges
+    - Data type mismatch in predicates
+    - Properly quoting identifiers
+    - Using the correct number of arguments for functions
+    - Casting to the correct data type
+    - Using the proper columns for joins
+"""
+
+query_gen_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", query_gen_system),
+        ("placeholder", "{messages}"),
+    ]
+)
+
+query_gen_llm = llm.with_structured_output(Query)
+
+decomposer_system = """
+You are an expert SQL developer.
+
+You will receive a user question that represents a query to a database.
+
+If the user question is simple and doesn't require any breakdown, return a list with a single task (original user question).
+
+If the user question is complex and has multiple subqueries, decompose the user question into a list of subtasks that can be executed in parallel.
+
+Each subtask should be a well defined subtask that can be transformed into an independent SQL query.
+
+If in doubt, return a list with a single task (original user question).
+"""
+
+decomposer_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", decomposer_system),
+        ("placeholder", "{messages}"),
+    ]
+)
+
+decomposer_llm = llm.with_structured_output(Subtasks)
+
+reducer_system = """
+You are an expert SQL developer.
+
+You will receive a list of SQL queries and a user question.
+
+These SQL queries are subtasks that are part of the overall task to answer the user question.
+
+Your job is to reduce the list of MariaDB SQL queries into a single MariaDB SQL query that answers the user question.
+
+Try to combine the queries into a single query if possible and make sure that the query is efficient.
+
+The SQL query should be syntactically correct.
+"""
+
+reducer_prompt = ChatPromptTemplate.from_messages(
