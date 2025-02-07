@@ -850,3 +850,235 @@ answer_and_reasoning_prompt = ChatPromptTemplate.from_messages(
 
 
 # Nodes
+# Nodes
+def first_tool_call(state: State) -> State:
+    return {
+        "messages": [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "sql_db_list_tables",
+                        "args": {},
+                        "id": "tool_abcd123",
+                    }
+                ],
+            )
+        ]
+    }
+
+
+def info_sql_database_tool_call(state: State) -> State:
+    return {
+        "messages": [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"name": "info_sql_database_tool", "args": {}, "id": "tool_abcd123"}
+                ],
+            ),
+        ]
+    }
+
+
+def handle_tool_error(state: State) -> State:
+    error = state.get("error")
+    tool_calls = state["messages"][-1].tool_calls
+    return {
+        "messages": [
+            ToolMessage(
+                content=f"Error: {repr(error)}\n please fix your mistakes.",
+                tool_call_id=tc["id"],
+            )
+            for tc in tool_calls
+        ]
+    }
+
+
+def create_tool_node_with_fallback(tools: list) -> RunnableWithFallbacks[Any, State]:
+    """
+    Create a ToolNode with a fallback to handle errors and surface them to the agent.
+    """
+    return ToolNode(tools).with_fallbacks(
+        [RunnableLambda(handle_tool_error)], exception_key="error"
+    )
+
+
+@tool
+def db_query_tool(query: str) -> str:
+    """
+    Query the database with a MariaDB SQL query
+    """
+    result = db.run_no_throw(query)
+    if result.startswith("Error:"):
+        return (
+            "Error: Query failed. Please rewrite your query and try again."
+            + f"\n\nDetails:{result}"
+        )
+    if len(result) > 2000:
+        return result[:2000] + "..."
+    return result
+
+
+@tool
+def info_sql_database_tool() -> str:
+    """
+    Get the information about the tables in the database
+    """
+    result = db.run_no_throw(
+        "SELECT TABLE_NAME, TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'cms' AND LENGTH(TABLE_COMMENT) > 100;"
+    )
+    full_response = f"Tables and Descriptions:\n\n{result}"
+    return full_response
+
+
+@tool
+def get_schema_tool(table_name: str) -> str:
+    """
+    get the schema of the table
+    """
+    schema_tool = next(tool for tool in tools if tool.name == "sql_db_schema")
+    result = schema_tool.invoke(table_name)
+    pattern = re.compile(r"/\*.*?\*/", re.DOTALL)
+    result = re.sub(pattern, "", result)
+    result = f"Selected Table {table_name}\n\nSchema: {result}"
+    return result
+
+
+def transform_user_question(state: State) -> State:
+    prompt = transform_user_question_prompt.format(messages=state["messages"])
+    response = transform_user_question_llm.invoke(prompt)
+    return {
+        "question": response.question,
+        "messages": [AIMessage(content=response.question)],
+    }
+
+
+def selector(state: State) -> State:
+    user_question = HumanMessage(content=state["question"])
+    messages = [user_question] + [
+        message for message in state["messages"] if isinstance(message, ToolMessage)
+    ]
+    last_message = state["messages"][-1]
+    max_retries = state["max_retries"]
+    sufficient_info = state.get("sufficient_info", True)
+    if not sufficient_info:
+        max_retries -= 1
+        messages.append(last_message)
+    prompt = selector_prompt.format(messages=messages)
+    print(prompt)
+    model_get_schema = mini_llm.bind_tools([get_schema_tool], tool_choice="required")
+    response = model_get_schema.invoke(prompt)
+    return {"messages": [response], "max_retries": max_retries}
+
+
+def contextualiser(state: State) -> State:
+    user_question = HumanMessage(content=state["question"])
+    # GET LAST 6 TOOL MESSAGES
+    messages = [user_question] + [
+        message for message in state["messages"] if isinstance(message, ToolMessage)
+    ][-6:]
+    prompt = contextualiser_prompt.format(messages=messages)
+    print(prompt)
+    response = llm.invoke(prompt)
+    return {"messages": [response], "information": response.content}
+
+
+def sufficient_tables(state: State) -> State:
+    user_question = HumanMessage(content=state["question"])
+    information = AIMessage(content=state["information"])
+    messages = [user_question, information]
+    prompt = sufficient_tables_prompt.format(messages=messages)
+    print(prompt)
+    response = sufficient_tables_llm.invoke(prompt)
+    full_response = (
+        f"Sufficient Tables: {response.sufficient}\n\nReason: {response.reason}"
+    )
+    return {
+        "messages": [AIMessage(content=full_response)],
+        "sufficient_info": response.sufficient,
+    }
+
+
+def decomposer(state: State) -> State:
+    user_question = HumanMessage(content=state["question"])
+    information = AIMessage(content=state["information"])
+    messages = [user_question, information]
+    prompt = decomposer_prompt.format(messages=messages)
+    response = decomposer_llm.invoke(prompt)
+    full_response = f"Subtasks: {response.subtasks}"
+    return {
+        "query_tasks": response.subtasks,
+        "messages": [AIMessage(content=full_response)],
+    }
+
+
+def query_gen(state: QueryTask) -> State:
+    last_message = state["messages"][-1]
+
+    task = AIMessage(content=f"Task: {state['task']}")
+    user_question = HumanMessage(content=state["question"])
+    information = AIMessage(content=state["information"])
+    messages = [user_question, information, task]
+
+    if last_message.content.startswith("Error:"):
+        messages.append(last_message)
+
+    prompt = query_gen_prompt.format(messages=messages)
+    print(prompt)
+    response = query_gen_llm.invoke(prompt)
+
+    full_response = f"Query: {response.query}\n\nReasoning: {response.reasoning}"
+    return {
+        "messages": [AIMessage(content=full_response)],
+        "sql_queries": [response.query],
+    }
+
+
+def reducer(state: State) -> State:
+    subtasks = AIMessage(content="\n".join(state["query_tasks"]))
+    sql_queries = AIMessage(content="\n".join(state["sql_queries"]))
+    user_question = HumanMessage(content=state["question"])
+    information = AIMessage(content=state["information"])
+    messages = [user_question, information, subtasks, sql_queries]
+    prompt = reducer_prompt.format(messages=messages)
+    print(prompt)
+    response = reducer_llm.invoke(prompt)
+    full_response = f"Query: {response.query}\n\nReasoning: {response.reasoning}"
+    state["query"] = response.query
+    return {"query": response.query, "messages": [AIMessage(content=full_response)]}
+
+
+def get_query_execution(state: State) -> State:
+    return {
+        "messages": [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "db_query_tool",
+                        "args": {"query": state["query"]},
+                        "id": "query_execution",
+                    },
+                ],
+            )
+        ]
+    }
+
+
+def final_answer(state: State) -> State:
+    messages = [
+        HumanMessage(content=state["question"]),
+        AIMessage(content=state["information"]),
+        state["messages"][-1],
+    ]
+    prompt = answer_and_reasoning_prompt.format(messages=messages)
+    print(prompt)
+    response = mini_llm.invoke(prompt)
+    return {
+        "answer": response.content,
+        "messages": [AIMessage(content=response.content)],
+    }
+
+
+# Edges
