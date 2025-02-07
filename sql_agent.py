@@ -823,3 +823,30 @@ The SQL query should be syntactically correct.
 """
 
 reducer_prompt = ChatPromptTemplate.from_messages(
+answer_and_reasoning_system = """
+You are an advanced reasoning agent.
+
+You will receive a user question, some intermediate reasoning to generate an sql query, and the final raw output from an SQL query. 
+
+The SQL agent follows the process of decomposing the user question into a list of subtasks,
+transforming the subtasks into SQL queries, checking the queries, reducing the queries into a single query,
+executing the query, iteratively refining the query until it is correct, and finally returning the final answer.
+
+Your job is to answer the user question by interpreting the information provided in the messages and present it in a structured and detailed manner.
+
+Provide a structured chain of thought reasoning for your answer. Go through the reasoning step by step and the intermediate results.
+
+Your answer should be in the same language as the user question.
+
+If you don't have enough information to answer the question, say "I don't know".
+"""
+
+answer_and_reasoning_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", answer_and_reasoning_system),
+        ("placeholder", "{messages}"),
+    ]
+)
+
+
+# Nodes
