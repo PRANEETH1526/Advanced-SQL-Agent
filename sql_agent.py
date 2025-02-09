@@ -1082,3 +1082,106 @@ def final_answer(state: State) -> State:
 
 
 # Edges
+# Edges
+def map_query_task(state: State):
+    messages = state["messages"]
+    return [
+        Send(
+            "query_gen",
+            {
+                "task": task,
+                "messages": messages,
+                "question": state["question"],
+                "information": state["information"],
+            },
+        )
+        for task in state["query_tasks"]
+    ]
+
+
+def continue_sufficient_tables(state: State) -> State:
+    messages = state["messages"]
+    max_retries = state["max_retries"]
+    last_message = messages[-1]
+    if last_message.content.startswith("Sufficient Tables: True") or max_retries == 0:
+        return "decomposer"
+    else:
+        return "selector"
+
+
+def continue_query_gen(state: State) -> State:
+    messages = state["messages"]
+    last_message = messages[-1]
+    max_retries = state["max_retries"] - 1
+    state["max_retries"] = max_retries
+    if max_retries < 0:
+        return "failed"
+    if last_message.content.startswith("Error:"):
+        task = "Fix the error in the query and rewrite the query."
+        state["query_tasks"] = [RemoveMessage(id=message.id) for message in messages]
+        state["query"] = ""
+        return Send(
+            "query_gen",
+            {
+                "task": task,
+                "messages": messages,
+                "question": state["question"],
+                "information": state["information"],
+            },
+        )
+    else:
+        return "correct_query"
+
+
+# Build the workflow
+workflow = StateGraph(State)
+workflow.add_node("transform_user_question", transform_user_question)
+workflow.add_node("first_tool_call", first_tool_call)
+workflow.add_node(
+    "list_tables_tool", create_tool_node_with_fallback([list_tables_tool])
+)
+workflow.add_node("info_sql_database_tool_call", info_sql_database_tool_call)
+workflow.add_node(
+    "info_sql_database_tool", create_tool_node_with_fallback([info_sql_database_tool])
+)
+workflow.add_node("tables_selector", selector)
+workflow.add_node("get_schema_tool", create_tool_node_with_fallback([get_schema_tool]))
+workflow.add_node("contextualiser", contextualiser)
+workflow.add_node("sufficient_tables", sufficient_tables)
+workflow.add_node("decomposer", decomposer)
+workflow.add_node("query_gen", query_gen)
+workflow.add_node("reducer", reducer)
+workflow.add_node("get_query_execution", get_query_execution)
+workflow.add_node("query_execute", create_tool_node_with_fallback([db_query_tool]))
+workflow.add_node("final_answer", final_answer)
+
+workflow.add_edge(START, "transform_user_question")
+workflow.add_edge("transform_user_question", "info_sql_database_tool_call")
+workflow.add_edge("info_sql_database_tool_call", "info_sql_database_tool")
+workflow.add_edge("info_sql_database_tool", "tables_selector")
+workflow.add_edge("tables_selector", "get_schema_tool")
+workflow.add_edge("get_schema_tool", "contextualiser")
+workflow.add_edge("contextualiser", "sufficient_tables")
+workflow.add_conditional_edges(
+    "sufficient_tables",
+    continue_sufficient_tables,
+    {
+        "selector": "tables_selector",
+        "decomposer": "decomposer",
+    },
+)
+workflow.add_conditional_edges("decomposer", map_query_task, ["query_gen"])
+workflow.add_edge("query_gen", "reducer")
+workflow.add_edge("reducer", "get_query_execution")
+workflow.add_edge("get_query_execution", "query_execute")
+workflow.add_conditional_edges(
+    "query_execute",
+    continue_query_gen,
+    {
+        "query_gen": "query_gen",
+        "correct_query": "final_answer",
+        "failed": END,
+    },
+)
+workflow.add_edge("final_answer", END)
+sql_agent = workflow.compile()
