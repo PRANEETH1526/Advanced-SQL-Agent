@@ -1185,3 +1185,5 @@ workflow.add_conditional_edges(
 )
 workflow.add_edge("final_answer", END)
 sql_agent = workflow.compile()
+
+sql_agent = workflow.compile()
