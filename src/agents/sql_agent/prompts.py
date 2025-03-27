@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 from agents.llm import llm, mini_llm
-from sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks
+from agents.sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks
 
 transform_user_question_system = """
 

@@ -12,7 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.prebuilt import ToolNode
 from agents.llm import llm, mini_llm
-from sql_agent.prompts import (
+from agents.sql_agent.prompts import (
     transform_user_question_prompt,
     transform_user_question_llm,
     selector_prompt,
@@ -28,7 +28,7 @@ from sql_agent.prompts import (
     answer_and_reasoning_prompt
 )
 
-DATABASE_URI = "" 
+DATABASE_URI = "mariadb+pymysql://userconnect@10.1.93.4/cms" 
 
 def download_db():
     db = SQLDatabase.from_uri(DATABASE_URI)
@@ -344,10 +344,6 @@ def continue_query_gen(state: State) -> State:
 # Build the workflow
 workflow = StateGraph(State)
 workflow.add_node("transform_user_question", transform_user_question)
-workflow.add_node("first_tool_call", first_tool_call)
-workflow.add_node(
-    "list_tables_tool", create_tool_node_with_fallback([list_tables_tool])
-)
 workflow.add_node("info_sql_database_tool_call", info_sql_database_tool_call)
 workflow.add_node(
     "info_sql_database_tool", create_tool_node_with_fallback([info_sql_database_tool])
@@ -393,3 +389,10 @@ workflow.add_conditional_edges(
 )
 workflow.add_edge("final_answer", END)
 sql_agent = workflow.compile()
+
+from IPython.display import Image, display
+image_data = sql_agent.get_graph().draw_mermaid_png()
+
+# Save to a file
+with open("sql_agent.png", "wb") as f:
+    f.write(image_data)
