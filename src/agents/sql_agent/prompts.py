@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 from agents.llm import llm, mini_llm
-from agents.sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks
+from agents.sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks, SimpleQuery
 
 transform_user_question_system = """
 
@@ -26,10 +26,13 @@ You could also receive feedback from your last iteration of selecting tables. Ta
 Instructions:
 
 Inclusiveness is Key:
-Err on the side of inclusion and select as much tables as you can. If a table might be relevant—even indirectly—include it. When in doubt, select the table.
+Err on the side of inclusion. If a table might be relevant—even indirectly—include it. When in doubt, select the table.
+
+Analytical Review: 
+Examine each table's name and description carefully.
+Consider potential joins or relationships: a table that seems marginal on its own may become crucial when combined with others.
 
 Evaluate Relevance:
-Consider potential joins or relationships: a table that seems marginal on its own may become crucial when combined with others.
 Identify keywords, data types, or any hints in the descriptions that suggest the table might hold useful data.
 Look for connections between tables (e.g., shared fields or related concepts) that might allow for joining to gather comprehensive data.
 
@@ -51,13 +54,14 @@ You will receive the following information:
 - A list of all tables and their descriptions in the database 
 - A list of selected relevant tables and their schemas. The schemas have a comment section that describes the table and the relationship with other tables.
 
-Your job is to organise the information from the selected tables and their schemas into a structured format and to eliminate fields in the schemas that are not relevant to the user question.
-When in doubt, keep the field. Retain the COMMENT section of the schema including all the joins information which is crucial. You can make this it's own section. Ensure that everything is detailed and clear and do not cut too much information.
+Your job is to organise the information from the selected tables and their schemas into a structured format and to eliminate tables and fields in the schemas that are not relevant to the user question.
+When in doubt, keep the table or field. Retain the COMMENT section of the schema including all the joins information which is crucial. You can make this it's own section. Ensure that everything is detailed and clear and do not cut too much information.
 You should not try to answer the user question, just present the information in a clear and structured format.
 
+Optionally, you may already be given your output in the previous iteration. In this case, you should only provide the new information to your output.
+
 Output Format:
-- User Question: <The user question>
-- Tables and Schemas: 1. A description of the table. 2. The schema of the table. 3. The COMMENT section of the schema.
+- Tables: <A brief description of the table and the COMMENT section of the schema.>
 - Key Relationships: <A list of key relationships between the tables including the join conditions>
 - Relevant Fields for the User Question: <A list of relevant fields for the user question>
 """
@@ -72,15 +76,11 @@ contextualiser_prompt = ChatPromptTemplate.from_messages(
 sufficient_tables_system = """ 
 You are an experienced and professional database administrator.
 
-You receive the schemas (including detailed table comments) of the tables selected by the Selector LLM along with the original user query. 
+You receive the information about the tables selected by the Selector LLM along with the original user query. 
 Your job is to decide whether these tables are sufficient to generate an SQL query that can be executed to answer the user's query.
 If they are not sufficient, you must provide a clear explanation of what is missing and suggest additional tables.
 
 Instructions:
-
-Deep Schema and Comment Analysis:
-Carefully read the table COMMENTs, as they explain the information each table holds and describe relationships and join information with other tables.
-Examine the columns, keys (primary, foreign), and any other structural details in the schemas that is detailed.
 
 Identify Missing Tables from Comments:
 If the table COMMENTs mention any table names that were not already selected (i.e. the table is not in the list of schemas), consider those as necessary for answering the query.
@@ -88,8 +88,8 @@ In such cases, output that the current selection is insufficient and explicitly 
 
 Sufficiency Evaluation:
 Decide if the available tables, when appropriately joined together, have the information to answer the user's query.
-If this is the case, state that the selection is sufficient. When in doubt, just mark it as sufficient.
-If any critical tables (including those mentioned in comments) are missing, mark the decision as insufficient.
+If this is the case, state that the selection is sufficient. 
+If any critical tables and their information are missing, mark the decision as insufficient.
 
 Output Format:
 Sufficient: Return a boolean value (True or False) indicating whether the tables are sufficient. Return True if the tables are sufficient.
@@ -156,7 +156,7 @@ decomposer_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-decomposer_llm = mini_llm.with_structured_output(Subtasks)
+decomposer_llm = llm.with_structured_output(Subtasks)
 
 reducer_system = """
 You are an expert SQL developer.
@@ -215,3 +215,24 @@ answer_and_reasoning_prompt = ChatPromptTemplate.from_messages(
         ("placeholder", "{messages}"),
     ]
 )
+
+query_router_system = """
+Your job is to determine if the user question is simple and doesn't require any breakdown or if there is enough information already to answer the user question
+
+If upon reflection you believe that the user question is simple (i.e. only one table is needed to answer the question, no joins are needed, etc.)
+return "True".
+If you believe that the user question is complex (i.e. multiple tables are needed, joins required), return "False".
+If you are unsure, return "False".
+
+Simple query example: Number of entries in the components table
+Complex query example: Number of components broken down by category, with percentage (components table joined with categories table)
+"""
+
+query_router_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", query_router_system),
+        ("placeholder", "{messages}"),
+    ]
+)
+
+query_router_llm = llm.with_structured_output(SimpleQuery)

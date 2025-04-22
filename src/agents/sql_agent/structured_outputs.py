@@ -17,3 +17,6 @@ class SufficientTables(BaseModel):
 
 class TransformUserQuestion(BaseModel):
     question: str = Field(description="The transformed user question")
+
+class SimpleQuery(BaseModel):
+    simple: bool = Field(description="Whether the query is simple or not")

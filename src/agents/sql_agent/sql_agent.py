@@ -26,7 +26,9 @@ from agents.sql_agent.prompts import (
     query_gen_llm,
     reducer_prompt,
     reducer_llm,
-    answer_and_reasoning_prompt
+    answer_and_reasoning_prompt,
+    query_router_prompt,
+    query_router_llm
 )
 
 DATABASE_URI = "mariadb+pymysql://userconnect@10.1.93.4/cms" 
@@ -143,7 +145,7 @@ def info_sql_database_tool() -> str:
     Get the information about the tables in the database
     """
     result = db.run_no_throw(
-        "SELECT TABLE_NAME, TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'cms' AND LENGTH(TABLE_COMMENT) > 100;"
+        "SELECT TABLE_NAME, TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'cms';"
     )
     full_response = f"Tables and Descriptions:\n\n{result}"
     return full_response
@@ -170,12 +172,16 @@ def transform_user_question(state: State) -> State:
         "messages": [AIMessage(content=response.question)],
     }
 
-
 def selector(state: State) -> State:
     user_question = HumanMessage(content=state["question"])
-    messages = [user_question] + [
-        message for message in state["messages"] if isinstance(message, ToolMessage)
+    unique_tool_calls = set([
+        message.content for message in state["messages"] if isinstance(message, ToolMessage)
+    ])
+    db_info = [
+        AIMessage(content=message)
+        for message in unique_tool_calls
     ]
+    messages = [user_question] + db_info 
     last_message = state["messages"][-1]
     max_retries = state["max_retries"]
     sufficient_info = state.get("sufficient_info", True)
@@ -183,28 +189,34 @@ def selector(state: State) -> State:
         max_retries -= 1
         messages.append(last_message)
     prompt = selector_prompt.format(messages=messages)
-    model_get_schema = mini_llm.bind_tools([get_schema_tool], tool_choice="required")
+    model_get_schema = llm.bind_tools([get_schema_tool], tool_choice="required")
     response = model_get_schema.invoke(prompt)
     return {"messages": [response], "max_retries": max_retries}
 
 
 def contextualiser(state: State) -> State:
     user_question = HumanMessage(content=state["question"])
+    unique_tool_calls = set([
+        message.content for message in state["messages"] if isinstance(message, ToolMessage)
+    ])
+    db_info = [
+        AIMessage(content=message)
+        for message in unique_tool_calls
+    ]
+    messages = [user_question] + db_info
     get_cache = state.get("retrieve_cache", False)
-    messages = [user_question] + [
-            message for message in state["messages"] if isinstance(message, ToolMessage)
-        ][-6:]
-    information = None
+    information = information = state.get("information", "")
     if not get_cache:
         response = AIMessage(content="Retrieving cached information from the database...")
         query = "\n".join(
             [message.content for message in messages]
         )
         information = search_data(collection, query) 
-    if not information:
-        prompt = contextualiser_prompt.format(messages=messages)
-        response = llm.invoke(prompt)
-        information = response.content
+    messages.append(AIMessage(content=f"Information from previous iteration. Only give me new information: {information}"))
+    prompt = contextualiser_prompt.format(messages=messages)
+    response = llm.invoke(prompt)
+    information += response.content
+    print(information)
 
     return {"messages": [response], "information": information, "retrieve_cache": True}
 
@@ -239,11 +251,12 @@ def decomposer(state: State) -> State:
 
 def query_gen(state: QueryTask) -> State:
     last_message = state["messages"][-1]
-
-    task = AIMessage(content=f"Task: {state['task']}")
     user_question = HumanMessage(content=state["question"])
-    information = AIMessage(content=state["information"])
-    messages = [user_question, information, task]
+    information = state.get("information")
+    if not information:
+        messages = state.get("messages")
+    else:
+        messages = [user_question, AIMessage(content=state["information"])]
 
     if last_message.content.startswith("Error:"):
         messages.append(last_message)
@@ -254,7 +267,7 @@ def query_gen(state: QueryTask) -> State:
     full_response = f"Query: {response.query}\n\nReasoning: {response.reasoning}"
     return {
         "messages": [AIMessage(content=full_response)],
-        "sql_queries": [response.query],
+        "query": response.query,
     }
 
 
@@ -291,7 +304,7 @@ def get_query_execution(state: State) -> State:
 def final_answer(state: State) -> State:
     messages = [
         HumanMessage(content=state["question"]),
-        AIMessage(content=state["information"]),
+        AIMessage(content=state.get("information", "")),
         state["messages"][-1],
     ]
     prompt = answer_and_reasoning_prompt.format(messages=messages)
@@ -318,13 +331,28 @@ def map_query_task(state: State):
         for task in state["query_tasks"]
     ]
 
+def query_router(state: State) -> State:
+    """
+    Maps to query gen straight away if the query is simple, or it can already be answered with the information provided.
+
+    Maps to contextualiser if the query is complex and needs to be broken down.
+    """
+    user_question = HumanMessage(content=state["question"])
+    messages = [user_question]
+    prompt = query_router_prompt.format(messages=messages)
+    response = query_router_llm.invoke(prompt)
+    if response.simple:
+        return "query_gen"
+    else:
+        return "contextualiser"
+
 
 def continue_sufficient_tables(state: State) -> State:
     messages = state["messages"]
     max_retries = state["max_retries"]
     last_message = messages[-1]
     if last_message.content.startswith("Sufficient Tables: True") or max_retries == 0:
-        return "decomposer"
+        return "query_gen"
     else:
         return "selector"
 
@@ -383,12 +411,12 @@ workflow.add_conditional_edges(
     continue_sufficient_tables,
     {
         "selector": "tables_selector",
-        "decomposer": "decomposer",
+        "query_gen": "query_gen",
     },
 )
-workflow.add_conditional_edges("decomposer", map_query_task, ["query_gen"])
-workflow.add_edge("query_gen", "reducer")
-workflow.add_edge("reducer", "get_query_execution")
+#workflow.add_conditional_edges("decomposer", map_query_task, ["query_gen"])
+workflow.add_edge("query_gen", "get_query_execution")
+#workflow.add_edge("reducer", "get_query_execution")
 workflow.add_edge("get_query_execution", "query_execute")
 workflow.add_conditional_edges(
     "query_execute",
