@@ -12,6 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.prebuilt import ToolNode
 from agents.llm import llm, mini_llm
+from agents.vectorstore import get_collection, search_data, insert_data
 from agents.sql_agent.prompts import (
     transform_user_question_prompt,
     transform_user_question_llm,
@@ -34,7 +35,7 @@ def download_db():
     db = SQLDatabase.from_uri(DATABASE_URI)
     return db
 
-
+collection = get_collection()
 db = download_db()
 
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)
@@ -48,6 +49,7 @@ get_schema_tool = next(tool for tool in tools if tool.name == "sql_db_schema")
 class State(TypedDict):
     question: str
     messages: Annotated[list[AnyMessage], add_messages]
+    retrieve_cache: bool
     sufficient_info: bool
     information: str
     query_tasks: list[str]
@@ -188,13 +190,23 @@ def selector(state: State) -> State:
 
 def contextualiser(state: State) -> State:
     user_question = HumanMessage(content=state["question"])
-    # GET LAST 6 TOOL MESSAGES
+    get_cache = state.get("retrieve_cache", False)
     messages = [user_question] + [
-        message for message in state["messages"] if isinstance(message, ToolMessage)
-    ][-6:]
-    prompt = contextualiser_prompt.format(messages=messages)
-    response = llm.invoke(prompt)
-    return {"messages": [response], "information": response.content}
+            message for message in state["messages"] if isinstance(message, ToolMessage)
+        ][-6:]
+    information = None
+    if not get_cache:
+        response = AIMessage(content="Retrieving cached information from the database...")
+        query = "\n".join(
+            [message.content for message in messages]
+        )
+        information = search_data(collection, query) 
+    if not information:
+        prompt = contextualiser_prompt.format(messages=messages)
+        response = llm.invoke(prompt)
+        information = response.content
+
+    return {"messages": [response], "information": information, "retrieve_cache": True}
 
 
 def sufficient_tables(state: State) -> State:
@@ -320,7 +332,7 @@ def continue_sufficient_tables(state: State) -> State:
 def continue_query_gen(state: State) -> State:
     messages = state["messages"]
     last_message = messages[-1]
-    max_retries = state["max_retries"] - 1
+    max_retries = state["max_retries"]
     state["max_retries"] = max_retries
     if max_retries < 0:
         return "failed"
@@ -388,11 +400,6 @@ workflow.add_conditional_edges(
     },
 )
 workflow.add_edge("final_answer", END)
+
 sql_agent = workflow.compile()
 
-from IPython.display import Image, display
-image_data = sql_agent.get_graph().draw_mermaid_png()
-
-# Save to a file
-with open("sql_agent.png", "wb") as f:
-    f.write(image_data)

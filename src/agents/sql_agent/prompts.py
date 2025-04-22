@@ -26,13 +26,10 @@ You could also receive feedback from your last iteration of selecting tables. Ta
 Instructions:
 
 Inclusiveness is Key:
-Err on the side of inclusion. If a table might be relevant—even indirectly—include it. When in doubt, select the table.
-
-Analytical Review: 
-Examine each table's name and description carefully.
-Consider potential joins or relationships: a table that seems marginal on its own may become crucial when combined with others.
+Err on the side of inclusion and select as much tables as you can. If a table might be relevant—even indirectly—include it. When in doubt, select the table.
 
 Evaluate Relevance:
+Consider potential joins or relationships: a table that seems marginal on its own may become crucial when combined with others.
 Identify keywords, data types, or any hints in the descriptions that suggest the table might hold useful data.
 Look for connections between tables (e.g., shared fields or related concepts) that might allow for joining to gather comprehensive data.
 
@@ -90,7 +87,7 @@ If the table COMMENTs mention any table names that were not already selected (i.
 In such cases, output that the current selection is insufficient and explicitly list the missing table names as suggestions for the reason, indicating that they should be routed back to the Selector LLM for inclusion.
 
 Sufficiency Evaluation:
-Decide if the available tables, when appropriately joined together, can be used to generate an sql query that can be executed to answer the user's query.
+Decide if the available tables, when appropriately joined together, have the information to answer the user's query.
 If this is the case, state that the selection is sufficient. When in doubt, just mark it as sufficient.
 If any critical tables (including those mentioned in comments) are missing, mark the decision as insufficient.
 
@@ -129,16 +126,6 @@ Review the Error: If an error message is provided along with the context, analyz
 Modify the Query: Adjust the previously generated SQL query to correct the error while ensuring that it still meets the requirements derived from the context.
 Document the Correction: Include brief inline comments in the query to describe the changes made to address the error.
 Output Format: Return the corrected SQL query as a single statement. 
-
-Double check the MariaDB query for common mistakes, including:
-    - Using NOT IN with NULL values
-    - Using UNION when UNION ALL should have been used
-    - Using BETWEEN for exclusive ranges
-    - Data type mismatch in predicates
-    - Properly quoting identifiers
-    - Using the correct number of arguments for functions
-    - Casting to the correct data type
-    - Using the proper columns for joins
 """
 
 query_gen_prompt = ChatPromptTemplate.from_messages(
@@ -157,11 +144,9 @@ You will receive a user question that represents a query to a database.
 
 If the user question is simple and doesn't require any breakdown, return a list with a single task (original user question).
 
-If the user question is complex and has multiple subqueries, decompose the user question into a list of subtasks that can be executed in parallel.
+If the user question is complex and has multiple subqueries, decompose the user question into a list of independent subtasks that can be executed in parallel.
 
-Each subtask should be a well defined subtask that can be transformed into an independent SQL query.
-
-If in doubt, return a list with a single task (original user question).
+Otherwise, return a list with a single task (original user question). Only decompose if the subtasks are independent of each other.
 """
 
 decomposer_prompt = ChatPromptTemplate.from_messages(
@@ -171,7 +156,7 @@ decomposer_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-decomposer_llm = llm.with_structured_output(Subtasks)
+decomposer_llm = mini_llm.with_structured_output(Subtasks)
 
 reducer_system = """
 You are an expert SQL developer.
@@ -182,9 +167,19 @@ These SQL queries are subtasks that are part of the overall task to answer the u
 
 Your job is to reduce the list of MariaDB SQL queries into a single MariaDB SQL query that answers the user question.
 
-Try to combine the queries into a single query if possible and make sure that the query is efficient.
+Ensure that the final query is efficient.
 
 The SQL query should be syntactically correct.
+
+Double check the MariaDB query for common mistakes, including:
+    - Using NOT IN with NULL values
+    - Using UNION when UNION ALL should have been used
+    - Using BETWEEN for exclusive ranges
+    - Data type mismatch in predicates
+    - Properly quoting identifiers
+    - Using the correct number of arguments for functions
+    - Casting to the correct data type
+    - Using the proper columns for joins
 """
 
 reducer_prompt = ChatPromptTemplate.from_messages(

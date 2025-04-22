@@ -160,7 +160,7 @@ Below is a high-level diagram illustrating how data flows among the different no
    - `llm` for heavier-lift tasks (table sufficiency, complex queries)
 
 3. **Workflow**:  
-   The `StateGraph` from [LangGraph](https://github.com/azurelangchain/langgraph) orchestrates the entire process:
+   The `StateGraph` orchestrates the entire process:
    1. **Transform User Question** → simpler, clearer question
    2. **List Tables & Select Relevant** → with iterative feedback
    3. **Contextualise** → gather schema info and relevant columns

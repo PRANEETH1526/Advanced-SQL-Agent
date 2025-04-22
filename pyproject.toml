@@ -8,10 +8,55 @@ dependencies = [
     "dotenv>=0.9.9",
     "ipython>=9.0.2",
     "langchain>=0.3.21",
+    "langchain-anthropic>=0.3.11",
     "langchain-community>=0.3.20",
     "langchain-core>=0.3.49",
+    "langchain-fireworks>=0.2.9",
     "langchain-openai>=0.3.11",
     "langgraph>=0.3.20",
     "pydantic>=2.10.6",
+    "pymilvus>=2.5.6",
     "pymysql>=1.1.1",
+    "python-dotenv>=1.1.0",
+    "tavily-python>=0.5.4",
+]
+
+
+[project.optional-dependencies]
+dev = ["mypy>=1.11.1", "ruff>=0.6.1"]
+
+[build-system]
+requires = ["setuptools>=73.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+[tool.ruff]
+lint.select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort
+    "D",    # pydocstyle
+    "D401", # First line should be in imperative mood
+    "T201",
+    "UP",
+]
+lint.ignore = [
+    "UP006",
+    "UP007",
+    # We actually do want to import from typing_extensions
+    "UP035",
+    # Relax the convention by _not_ requiring documentation for every function parameter.
+    "D417",
+    "E501",
+]
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "UP"]
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[dependency-groups]
+dev = [
+    "langgraph-cli[inmem]>=0.1.71",
 ]

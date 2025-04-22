@@ -1,4 +1,4 @@
-from langchain_openai import AzureChatOpenAI
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 import os
 from dotenv import load_dotenv
 
@@ -18,4 +18,11 @@ llm = AzureChatOpenAI(
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_4O"),
     api_key=os.getenv("AZURE_OPENAI_API_KEY_4O"),
     temperature=0,
+)
+
+embeddings = AzureOpenAIEmbeddings(
+    model="text-embedding-ada-002",
+    azure_endpoint=os.getenv("AZURE_EMBEDDING_ENDPOINT"),
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    openai_api_version=os.getenv("AZURE_EMBEDDING_API_VERSION"),
 )
