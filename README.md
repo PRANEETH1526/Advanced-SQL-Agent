@@ -1,3 +1,203 @@
+
+# 📚 API Documentation
+
+This API allows clients to invoke AI agents, stream responses, and fetch chat history.
+
+---
+
+## 🔐 Authentication
+
+All endpoints (except `/health`) require a Bearer Token in the `Authorization` header.
+
+```
+Authorization: Bearer <AUTH_SECRET>
+```
+
+The default token for local use is:
+
+```
+supersecret
+```
+
+---
+
+## 🌐 Base URL
+
+```
+http://localhost:8080
+```
+
+---
+
+## 📑 Endpoints Overview
+
+| Method | Endpoint                    | Description                      |
+|--------|-----------------------------|----------------------------------|
+| GET    | `/health`                   | Health check                     |
+| POST   | `/invoke`                   | Invoke default agent             |
+| POST   | `/{agent_id}/invoke`        | Invoke specific agent            |
+| POST   | `/stream`                   | Stream from default agent        |
+| POST   | `/{agent_id}/stream`        | Stream from specific agent       |
+| POST   | `/history`                  | Get chat history for a thread    |
+
+---
+
+## ✅ Health Check
+
+**GET** `/health`
+
+Returns service status.
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## 💬 Invoke Agent (Single Response)
+
+**POST** `/invoke`  
+**POST** `/{agent_id}/invoke`
+
+Invokes the agent and returns the **final AI response**.
+
+**Headers:**
+```http
+Authorization: Bearer <AUTH_SECRET>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "message": "Latest PO",
+  "thread_id": null,
+  "agent_config": {}
+}
+```
+
+**Response:**
+```json
+{
+  "type": "ai",
+  "content": "The latest purchase order was made in ...",
+  "run_id": "uuid-123"
+}
+```
+
+---
+
+## 🔄 Stream Agent Response (SSE)
+
+**POST** `/stream`  
+**POST** `/{agent_id}/stream`
+
+Streams intermediate messages and/or token chunks from the agent.
+
+**Headers:**
+```http
+Authorization: Bearer <AUTH_SECRET>
+Content-Type: application/json
+Accept: text/event-stream
+```
+
+**Request Body:**
+```json
+{
+  "message": "How many capacitors were ordered in 2023",
+  "thread_id": null,
+  "agent_config": {},
+  "stream_tokens": true
+}
+```
+
+**Response:** Server-Sent Events (SSE)
+```
+data: {"type": "message", "content": { ... }}
+
+data: {"type": "token", "content": "Once"}
+
+data: {"type": "token", "content": " upon"}
+
+...
+
+data: [DONE]
+```
+
+---
+
+## 📜 Get Chat History
+
+**POST** `/history`
+
+Returns the full message history for a given `thread_id`.
+
+**Headers:**
+```http
+Authorization: Bearer <AUTH_SECRET>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "thread_id": "847c6285-8fc9-4560-a83f-4e6285809254"
+}
+```
+
+**Response:**
+```json
+{
+  "messages": [
+    { "type": "human", "content": "Hello" },
+    { "type": "ai", "content": "Hi there!" }
+  ]
+}
+```
+
+---
+
+## 🧪 Example cURL Usage
+
+### 🔸 Invoke Agent
+
+```bash
+curl -X POST http://localhost:8080/invoke \
+  -H "Authorization: Bearer supersecret" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Latest PO",
+    "thread_id": null,
+    "agent_config": {}
+  }'
+```
+
+### 🔸 Stream Agent (SSE)
+
+```bash
+curl -N -X POST http://localhost:8080/stream \
+  -H "Authorization: Bearer supersecret" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "message": "Latest PO",
+    "stream_tokens": true
+  }'
+```
+
+---
+
+## 🧠 Notes for Developers
+
+- `thread_id` allows conversation memory and should be reused across requests in the same session.
+- `run_id` is auto-generated and returned in every message.
+- `agent_config` supports custom overrides depending on the agent's behavior.
+- For real-time apps, always use `/stream` for a ChatGPT-style experience.
+
+
 # SQL Agent
 
 **A multi-agent system that transforms natural language questions into robust SQL queries, executes them, and returns structured answers.**  

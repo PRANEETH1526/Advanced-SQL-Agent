@@ -12,7 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.prebuilt import ToolNode
 from agents.llm import llm, mini_llm
-from agents.vectorstore import get_collection, search_data, insert_data
+from agents.vectorstore import get_collection, insert_data, dense_search
 from agents.sql_agent.prompts import (
     transform_user_question_prompt,
     transform_user_question_llm,
@@ -32,12 +32,13 @@ from agents.sql_agent.prompts import (
 )
 
 DATABASE_URI = "mariadb+pymysql://userconnect@10.1.93.4/cms" 
+COLLECTION_NAME = "sql_agent"
 
 def download_db():
     db = SQLDatabase.from_uri(DATABASE_URI)
     return db
 
-collection = get_collection()
+collection = get_collection(COLLECTION_NAME)
 db = download_db()
 
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)
@@ -51,6 +52,7 @@ get_schema_tool = next(tool for tool in tools if tool.name == "sql_db_schema")
 class State(TypedDict):
     question: str
     messages: Annotated[list[AnyMessage], add_messages]
+    all_tables: str
     retrieve_cache: bool
     sufficient_info: bool
     information: str
@@ -170,24 +172,18 @@ def transform_user_question(state: State) -> State:
     return {
         "question": response.question,
         "messages": [AIMessage(content=response.question)],
+        "max_retries": 1
     }
 
 def selector(state: State) -> State:
     user_question = HumanMessage(content=state["question"])
-    unique_tool_calls = set([
-        message.content for message in state["messages"] if isinstance(message, ToolMessage)
-    ])
-    db_info = [
-        AIMessage(content=message)
-        for message in unique_tool_calls
-    ]
-    messages = [user_question] + db_info 
+    messages = [user_question]
     last_message = state["messages"][-1]
     max_retries = state["max_retries"]
     sufficient_info = state.get("sufficient_info", True)
     if not sufficient_info:
         max_retries -= 1
-        messages.append(last_message)
+    messages.append(last_message)
     prompt = selector_prompt.format(messages=messages)
     model_get_schema = llm.bind_tools([get_schema_tool], tool_choice="required")
     response = model_get_schema.invoke(prompt)
@@ -211,12 +207,18 @@ def contextualiser(state: State) -> State:
         query = "\n".join(
             [message.content for message in messages]
         )
-        information = search_data(collection, query) 
-    messages.append(AIMessage(content=f"Information from previous iteration. Only give me new information: {information}"))
-    prompt = contextualiser_prompt.format(messages=messages)
-    response = llm.invoke(prompt)
-    information += response.content
-    print(information)
+        context = dense_search(
+            collection,
+            query,
+            limit=1,
+        )[0].fields.get("text")
+        information += context
+    else:
+        if information:
+            messages.append(AIMessage(content=f"Fill in the gaps, retain all this information: {information}"))
+        prompt = contextualiser_prompt.format(messages=messages)
+        response = llm.invoke(prompt)
+        information = response.content
 
     return {"messages": [response], "information": information, "retrieve_cache": True}
 
@@ -226,6 +228,7 @@ def sufficient_tables(state: State) -> State:
     information = AIMessage(content=state["information"])
     messages = [user_question, information]
     prompt = sufficient_tables_prompt.format(messages=messages)
+    print(prompt)
     response = sufficient_tables_llm.invoke(prompt)
     full_response = (
         f"Sufficient Tables: {response.sufficient}\n\nReason: {response.reason}"
@@ -252,11 +255,7 @@ def decomposer(state: State) -> State:
 def query_gen(state: QueryTask) -> State:
     last_message = state["messages"][-1]
     user_question = HumanMessage(content=state["question"])
-    information = state.get("information")
-    if not information:
-        messages = state.get("messages")
-    else:
-        messages = [user_question, AIMessage(content=state["information"])]
+    messages = [user_question, AIMessage(content=state["information"])]
 
     if last_message.content.startswith("Error:"):
         messages.append(last_message)

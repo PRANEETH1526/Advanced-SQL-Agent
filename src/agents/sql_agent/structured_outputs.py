@@ -5,6 +5,18 @@ class Subtasks(BaseModel):
         description="The list of subtasks to be transformed into queries"
     )
 
+class ContextInformation(BaseModel):
+    tables: str = Field(
+        description="A brief description of the table and the COMMENT section of the schema if there is one"
+    )
+    relationships: str = Field(
+        description="A list of key relationships between the tables including the join conditions"
+    )
+    relevant_fields: str = Field(
+        description="A list of relevant fields in the tables that are useful for the query including their data types"
+    )
+
+
 class Query(BaseModel):
     query: str = Field(description="The SQL query to be executed")
     reasoning: str = Field(description="The reasoning for the query")

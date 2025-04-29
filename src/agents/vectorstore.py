@@ -1,9 +1,30 @@
-from pymilvus import DataType, MilvusClient, connections, Collection
-from agents.llm import embeddings
+from agents.llm import embeddings as dense_embedder
+#from agents.llm import sparse_embeddings as sparse_embedder
+from typing import Dict, Any, List
+from pymilvus import MilvusClient, DataType, Collection, AnnSearchRequest, WeightedRanker, connections
 
-DATABASE_URI = "./sql_agent.db"
-COLLECTION_NAME = "sql_agent"
+DATABASE_URI = "./intellidesign.db"
+COLLECTION_NAME = "sql_agent" # default collection name
 
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+
+nltk.download('punkt')
+nltk.download('stopwords')
+stop_words = set(stopwords.words('english'))
+
+def get_collection(collection_name) -> Collection:
+    """
+    Connect to the Milvus server and get the collection.
+    Returns:
+        Collection: The Milvus collection.
+    """
+    connections.connect(
+        uri=DATABASE_URI,
+        alias="default",
+    ) 
+    return Collection(collection_name)
 
 
 def create_collection():
@@ -12,10 +33,10 @@ def create_collection():
     This function checks if the collection already exists, and if not, it creates a new one. 
     """
     client = MilvusClient(
-        uri=DATABASE_URI,
+        uri=DATABASE_URI
     )
 
-    if client.has_collection(collection_name=COLLECTION_NAME):
+    if client.has_collection(COLLECTION_NAME):
         print(f"Collection '{COLLECTION_NAME}' already exists.")
         return
     
@@ -40,20 +61,6 @@ def create_collection():
         index_params=index_params,
     ) 
 
-
-def get_collection() -> Collection:
-    """
-    Connect to the Milvus server and get the collection.
-    Returns:
-        Collection: The Milvus collection.
-    """
-    connections.connect(
-        uri=DATABASE_URI,
-        alias="default",
-    ) 
-    return Collection(COLLECTION_NAME)
-
-
 def insert_data(collection: Collection, information: str):
     """
     Insert data into the Milvus collection.
@@ -64,211 +71,294 @@ def insert_data(collection: Collection, information: str):
     data = [
         {
             "text": information,
-            "vector": embeddings.embed_query(information),
+            "vector": dense_embedder.embed_query(information),
         }
     ]
     collection.insert(data)
     print(f"Inserted data into collection '{COLLECTION_NAME}'.")
 
-def search_data(collection: Collection, query: str, top_k: int = 1):
+
+def dense_search(col: Collection, query: str, limit=10, expr=None) -> List[Dict]:
     """
-    Search for data in the Milvus collection.
+    Perform a dense search in the Milvus collection.
     Args:
-        collection (Collection): The Milvus collection.
-        query (str): The query to search for.
-        top_k (int): The number of top results to return.
+        col (Collection): The Milvus collection to search.
+        query (str): The query string.
+        limit (int): The number of results to return.
+        expr (str): Optional expression for filtering results.
     Returns:
-        str: The text of the most relevant result.
+        List[Dict]: List of dictionaries containing the search results.
     """
-    search_params = {
-        "metric_type": "IP",
-        "params": {"nprobe": 10},
-    }
-    query_vector = embeddings.embed_query(query)
-    result = collection.search(
-        data=[query_vector],
+    search_params = {"metric_type": "IP", "params": {}}
+    res = col.search(
+        [dense_embedder.embed_query(query)],
         anns_field="vector",
+        limit=limit,
         param=search_params,
-        limit=top_k,
-        output_fields=["text"],
-        expr=None,
+        output_fields=["text", "doc_id", "source", "title", "url"],
+        expr=expr
     )[0]
-    return result[0].entity.get("text") if result else None
+    return res
 
-
-if __name__ == "__main__":
-    # Get the collection
-    create_collection()
-    collection = get_collection()
-    test = """
-
-    ### Structured Output
-
-    #### User Question:
-    Can you provide a list of the top 20 component categories purchased in the last year based on total spend from `comp_lot`? For each category, please include the following details: category name, total spend for the category, the ID with the highest spend in that category, and the total spend for that ID.
-
-    ---
-
-    ### Tables and Schemas:
-
-    #### Table: `comp_lot`
-    - **Table Description**: Tracks detailed information for component lots, providing batch-level visibility into inventory and sourcing. Key fields include `lot_no` (human-readable identifier), `lot_date` (creation date), `price` (unit price in AUD), `purchased_amount` (quantity purchased), and `source_ID` (link to sourcing record). This table supports inventory and sourcing traceability.
-    
-    - **Schema**:
-    sql
-
-    CREATE TABLE comp_lot (
-        lot_no VARCHAR(20) NOT NULL COMMENT 'Key field' DEFAULT '', 
-        lot_date DATE COMMENT 'Date lot was created. NOT when it was purchased.', 
-        price FLOAT COMMENT 'Unit price, converted to AUD', 
-        purchased_amount FLOAT COMMENT 'How many were purchased. If the lot is split, this number reduces by the split amount.' DEFAULT 0, 
-        source_ID INTEGER(11) COMMENT 'JOIN comp_lot.source_ID = comp_src.source_ID' DEFAULT 0, 
-        PRIMARY KEY (lot_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE utf8mb3_general_ci;
-
-    - **COMMENT Section**:
-    Tracks detailed information for component lots, providing batch-level visibility into inventory and sourcing. The primary key `lot_id` uniquely identifies each lot, while `lot_no` serves as a human-readable identifier formatted as `DDMMYY-X`, with optional suffixes for split lots. Key fields include `lot_date` (creation date), `price` (per part in AUD), and `purchased_amount` (acquisition details). The `source_ID` field links each lot to its sourcing record in `comp_src`, ensuring traceability.
-
-    **Joins**:
-    - `comp_src.source_ID = comp_lot.source_ID` (each sourcing record links to a specific lot via `source_ID`).
-    - `purchase_order_lines.lot_no = comp_lot.lot_no` (if a line references a specific inventory lot).
-    - `comp_lot.purchase_order = purchase_orders.pono` (each lot was purchased on a particular PO).
-
-    - **Relevant Fields**:
-    - `lot_no`
-    - `lot_date`
-    - `price`
-    - `purchased_amount`
-    - `source_ID`
-
-    ---
-
-    #### Table: `purchase_order_lines`
-    - **Table Description**: Tracks individual line items for purchase orders, providing detailed insight into each order’s components and pricing. Key fields include `po_id` (link to parent order), `lot_no` (optional link to inventory lot), `price` (price in PO currency), and `qty` (quantity ordered).
-
-    - **Schema**:
-    sql
-
-    CREATE TABLE purchase_order_lines (
-        po_id INTEGER(11) COMMENT 'JOIN purchase_order_lines.po_id = purchase_orders.id', 
-        lot_no VARCHAR(20) COMMENT 'JOIN comp_lot.lot_no = purchase_order_lines.lot_no', 
-        price DECIMAL(15, 5) COMMENT 'Price in the PO currency.', 
-        qty FLOAT COMMENT 'Quantity ordered', 
-        PRIMARY KEY (id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE utf8mb3_general_ci;
-
-    - **COMMENT Section**:
-    Tracks individual line items for purchase orders, providing detailed insight into each order’s components and pricing. The primary key `id` uniquely identifies each line, and `po_id` links the line to its parent order, while `lot_no` optionally ties the line to a specific inventory lot. Key fields include `price` (price in PO currency) and `qty` (quantity ordered).
-
-    **Joins**:
-    - `purchase_order_lines.po_id = purchase_orders.id` (each line belongs to a purchase order).
-    - `purchase_order_lines.lot_no = comp_lot.lot_no` (if a line references a specific inventory lot).
-
-    - **Relevant Fields**:
-    - `po_id`
-    - `lot_no`
-    - `price`
-    - `qty`
-
-    ---
-
-    #### Table: `category`
-    - **Table Description**: Categorizes components into different categories (e.g., integrated circuit, capacitor, resistor, metalwork). Key fields include `ID` (primary key) and `category` (text field indicating the component category).
-
-    - **Schema**:
-    sql
-
-    CREATE TABLE category (
-        ID INTEGER(11) NOT NULL COMMENT 'JOIN category.ID = component.cat_no' AUTO_INCREMENT, 
-        category VARCHAR(100) COMMENT 'Text field showing the component category' DEFAULT '', 
-        PRIMARY KEY (ID)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE utf8mb3_general_ci;
-
-    - **COMMENT Section**:
-    The `category` table is used to categorize components into different categories (e.g., integrated circuit, capacitor, resistor, metalwork). The key field is `ID`, and the `category` field is a text field indicating the component category.
-
-    **Joins**:
-    - `component.cat_no = category.ID` (each component is of a particular category).
-
-    - **Relevant Fields**:
-    - `ID`
-    - `category`
-
-    ---
-
-    #### Table: `component`
-    - **Table Description**: Stores component data representing groups of parts conforming to specific specifications. Key fields include `ID` (primary key) and `cat_no` (link to `category.ID`).
-
-    - **Schema**:
-    sql
-
-    CREATE TABLE component (
-        ID INTEGER(11) NOT NULL COMMENT 'Primary key and text identifier of the component. e.g. ID6334' AUTO_INCREMENT, 
-        cat_no INTEGER(11) COMMENT 'JOIN component.cat_no = category.ID' DEFAULT 0, 
-        PRIMARY KEY (ID)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE utf8mb3_general_ci;
-
-    - **COMMENT Section**:
-    Stores component data representing groups of parts conforming to specific specifications. Each component is uniquely identified (e.g., `ID6334`) and includes a descriptive field detailing its purpose and application. Components are categorized (e.g., capacitor, resistor, end product, subassembly) via the `component.cat_no` field, which links to `category.ID` for added context.
-
-    **Joins**:
-    - `component.cat_no = category.ID` (each component is of a particular category).
-    - `component.ID = comp_src.ID` (each sourcing record is linked to a component via its ID).
-
-    - **Relevant Fields**:
-    - `ID`
-    - `cat_no`
-
-    ---
-
-    #### Table: `comp_src`
-    - **Table Description**: Stores sourcing details for components, linking each component’s ID to its associated vendor and manufacturer data. Key fields include `source_ID` (primary key) and `ID` (link to `component.ID`).
-
-    - **Schema**:
-    sql
-
-    CREATE TABLE comp_src (
-        source_ID INTEGER(11) NOT NULL COMMENT 'primary key for the comp_src table' AUTO_INCREMENT, 
-        ID INTEGER(11) COMMENT 'JOIN comp_src.ID = component.ID', 
-        PRIMARY KEY (source_ID)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE utf8mb3_general_ci;
-
-    - **COMMENT Section**:
-    Stores sourcing details for components, linking each component’s ID to its associated vendor and manufacturer data. The `source_ID` field connects sourcing records to specific component lots in `comp_lot`, enhancing traceability.
-
-    **Joins**:
-    - `comp_src.ID = component.ID` (each sourcing record is linked to a component via its ID).
-    - `comp_src.source_ID = comp_lot.source_ID` (each sourcing record links to a specific lot via `source_ID`).
-
-    - **Relevant Fields**:
-    - `source_ID`
-    - `ID`
-
-    ---
-
-    ### Key Relationships:
-    1. **`comp_lot` ↔ `comp_src`**:
-    - `comp_lot.source_ID = comp_src.source_ID` (links lots to sourcing records).
-
-    2. **`comp_src` ↔ `component`**:
-    - `comp_src.ID = component.ID` (links sourcing records to components).
-
-    3. **`component` ↔ `category`**:
-    - `component.cat_no = category.ID` (links components to their categories).
-
-    4. **`comp_lot` ↔ `purchase_order_lines`**:
-    - `comp_lot.lot_no = purchase_order_lines.lot_no` (links lots to purchase order lines).
-
-    ---
-
-    ### Relevant Fields:
-    - **From `comp_lot`**: `lot_no`, `lot_date`, `price`, `purchased_amount`, `source_ID`
-    - **From `purchase_order_lines`**: `po_id`, `lot_no`, `price`, `qty`
-    - **From `category`**: `ID`, `category`
-    - **From `component`**: `ID`, `cat_no`
-    - **From `comp_src`**: `source_ID`, `ID`
+def sparse_search(col: Collection, query: str, limit=10, expr=None, remove_stopwords=False) -> List[Dict]:
     """
-    # insert
-    insert_data(collection, test)
-    result = search_data(collection, "comp lot")
-    print(f"Search result: {result}")
+    Perform a sparse search in the Milvus collection.
+    Args:
+        col (Collection): The Milvus collection to search.
+        query (str): The query string.
+        limit (int): The number of results to return.
+        expr (str): Optional expression for filtering results.
+        remove_stopwords (bool): Whether to remove stopwords from the query.
+    Returns:
+        List[Dict]: List of dictionaries containing the search results.
+    """
+    if remove_stopwords:
+        tokens = word_tokenize(query)
+        query = ' '.join([word for word in tokens if word.lower() not in stop_words])
+    search_params = {"metric_type": "IP", "params": {}}
+    res = col.search(
+        [sparse_embedder.encode_queries([query])["sparse"]],
+        anns_field="sparse",
+        limit=limit,
+        param=search_params,
+        output_fields=["text", "doc_id", "source", "title", "url"],
+        expr=expr
+    )[0]
+    return res
+    
+def hybrid_search(
+    col: Collection,
+    query: str,
+    sparse_weight=0.7,
+    dense_weight=1.0,
+    limit=10,
+    expr=None,
+    remove_stopwords=True
+) -> List[Dict]:
+    """
+    Perform a hybrid search in the Milvus collection.
+    Args:
+        col (Collection): The Milvus collection to search.
+        query (str): The query string.
+        sparse_weight (float): Weight for sparse search results.
+        dense_weight (float): Weight for dense search results.
+        limit (int): The number of results to return.
+        expr (str): Optional expression for filtering results.
+        remove_stopwords (bool): Whether to remove stopwords from the query.
+    Returns:
+        List[Dict]: List of dictionaries containing the search results.
+    """
+    dense_search_params = {
+        "metric_type": "IP",
+        "params": {"nprobe": 10}
+    }
+    dense_req = AnnSearchRequest(
+        data=[dense_embedder.embed_query(query)],
+        anns_field="vector",
+        param=dense_search_params,
+        limit=limit,
+        expr=expr
+    )
+
+    sparse_search_params = {
+        "metric_type": "IP",
+        "params": {}
+    }
+
+    if remove_stopwords:
+        tokens = word_tokenize(query)
+        query = ' '.join([word for word in tokens if word.lower() not in stop_words])
+
+    sparse_req = AnnSearchRequest(
+        data=[sparse_embedder.encode_queries([query])["sparse"]],
+        anns_field="sparse",
+        param=sparse_search_params,
+        limit=limit,
+        expr=expr
+    )
+    rerank = WeightedRanker(sparse_weight, dense_weight)
+    res = col.hybrid_search(
+        [sparse_req, dense_req],
+        rerank=rerank,
+        limit=limit,
+        output_fields=["text", "doc_id", "source", "title", "url"],
+    )[0]
+    return res
+
+def merge_chunks_in_results(docs):
+    """
+    Merges chunks of documents with the same title into a single document.
+    Args:
+        docs (List[Document]): List of documents to merge.
+    Returns:
+        List[Document]: List of merged documents.
+    """
+    merged_docs = {}
+    best_scores = {}
+
+    for doc in docs:
+        score = doc.distance
+        entity = doc.fields
+        title = entity.get("title")
+        if title in merged_docs:
+            merged_docs[title]["text"] += entity.get("text")
+            best_scores[title] = max(best_scores[title], score)
+        else:
+            merged_docs[title] = entity 
+            best_scores[title] = score
+        
+    for title in merged_docs:
+        merged_docs[title]["score"] = best_scores[title]
+    
+    return list(merged_docs.values())
+
+def process_chunks(docs):
+    """
+    Processes chunks of documents to ensure they are in the correct format.
+    Args:
+        docs (List[Document]): List of documents to process.
+    Returns:
+        List[Document]: List of processed documents.
+    """
+    processed_docs = {}
+    for doc in docs:
+        score = doc.distance
+        entity = doc.fields
+        title = entity.get("title")
+        processed_docs[title] = {
+            "text": entity.get("text"),
+            "score": score,
+            "source": entity.get("source"),
+            "url": entity.get("url"),
+            "title": title,
+            "doc_id": entity.get("doc_id"),
+        }
+        
+    return list(processed_docs.values())
+
+def normalize_scores(results: List[Dict], epsilon: float = 0.3) -> List[Dict]:
+    """
+    Normalize the scores of the documents in the search results, ensuring no score is zero.
+    Args:
+        results (List[Dict]): List of dictionaries containing the search results.
+        epsilon (float): Minimum score after normalization to avoid 0 relevance.
+    Returns:
+        List[Dict]: List of dictionaries with normalized scores.
+    """
+    if not results:
+        return results
+
+    scores = [doc['score'] for doc in results]
+    min_score = min(scores)
+    max_score = max(scores)
+
+    if max_score == min_score:
+        for doc in results:
+            doc['score'] = 1.0
+        return results
+
+    for doc in results:
+        norm_score = (doc['score'] - min_score) / (max_score - min_score)
+        doc['score'] = norm_score * (1 - epsilon) + epsilon  # Scales to [ε, 1]
+
+    results.sort(key=lambda x: x['score'], reverse=True)
+    return results
+
+def json_to_milvus_filter(filters):
+    """
+    Convert a list of filter conditions into a Milvus filter expression.
+    :param filters: list - A list of dictionaries representing filter conditions.
+    :return: str - Milvus filter expression.
+    """
+    def parse_condition(field, operator, value):
+        if isinstance(value, str):
+            value = f'"{value}"'  # Ensure strings are quoted
+        elif isinstance(value, list):
+            formatted_items = []
+            for x in value:
+                if isinstance(x, str):
+                    formatted_items.append(f'"{x}"')
+                else:
+                    formatted_items.append(str(x))
+            value = f'[{", ".join(formatted_items)}]'
+        
+        if operator == "==":
+            return f"{field} == {value}"
+        elif operator == "!=":
+            return f"{field} != {value}"
+        elif operator in [">", "<", ">=", "<="]:
+            return f"{field} {operator} {value}"
+        elif operator == "IN":
+            return f"{field} in {value}"
+        elif operator == "LIKE":
+            return f"{field} LIKE {value}"
+        elif operator == "JSON_CONTAINS":
+            return f"json_contains({field}, {value})"
+        elif operator == "JSON_CONTAINS_ALL":
+            return f"json_contains_all({field}, {value})"
+        elif operator == "JSON_CONTAINS_ANY":
+            return f"json_contains_any({field}, {value})"
+        elif operator == "ARRAY_CONTAINS":
+            return f"ARRAY_CONTAINS({field}, {value})"
+        elif operator == "ARRAY_CONTAINS_ALL":
+            return f"ARRAY_CONTAINS_ALL({field}, {value})"
+        elif operator == "ARRAY_CONTAINS_ANY":
+            return f"ARRAY_CONTAINS_ANY({field}, {value})"
+        elif operator == "ARRAY_LENGTH":
+            return f"ARRAY_LENGTH({field}) {value}"  # Expecting condition in value (e.g., "< 10")
+        else:
+            raise ValueError(f"Unsupported operator: {operator}")
+    
+    def parse_filters(filters):
+        expressions = []
+        for condition in filters:
+            field = condition["field"]
+            operator = condition["operator"]
+            value = condition["value"]
+            expressions.append(parse_condition(field, operator, value))
+        return " AND ".join(expressions)  # Default logical operator is AND
+    
+    return parse_filters(filters)
+
+def search_vectorstore(
+    col: Collection, 
+    query: str, 
+    k: int = 5, 
+    filters: Dict[str, Any] = None, 
+    search_type="dense", 
+    merge=False,
+    remove_stopwords=False) -> List[Dict]:
+    """
+    Search the vector store for relevant documents based on the query.
+    Args:
+        collection (Collection): The Milvus collection to search.
+        query (str): The query string.
+        k (int): The number of results to return.
+        filters (Dict[str, Any]): Optional filters for the search.
+        search_type (str): Type of search to perform ("dense", "sparse", "hybrid").
+        merge (bool): Whether to merge duplicate documents.
+    Returns:
+        List[Dict]: List of dictionaries containing the search results.
+    """
+    if filters:
+        expr = json_to_milvus_filter(filters)
+    else:
+        expr = None
+
+    search_results = []
+
+    if search_type == "dense":
+        search_results = dense_search(col, query, k, expr)
+    elif search_type == "sparse":
+        search_results = sparse_search(col, query, k, expr, remove_stopwords=remove_stopwords)
+    else:
+        search_results = hybrid_search(col, query, limit=k, expr=expr, remove_stopwords=remove_stopwords)
+    
+    if merge:
+        search_results = merge_chunks_in_results(search_results)
+    else:
+        search_results = process_chunks(search_results)
+    
+    search_results = normalize_scores(search_results)
+
+    return search_results
