@@ -7,7 +7,7 @@ class RouteQuery(BaseModel):
     """
 
     datasource: Literal["vectorstore", "websearch"] = Field(
-        ..., description="The data source to route the query to"
+        ..., description="The data source to route the query to. Vectorstore stores company data, while websearch queries the web."
     )
 
 

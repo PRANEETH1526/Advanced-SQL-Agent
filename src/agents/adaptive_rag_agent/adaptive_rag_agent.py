@@ -27,12 +27,7 @@ COLLECTION_NAME = "sql_agent"
 
 web_search_tool = TavilySearchResults(max_results=3)
 
-collection = get_collection(COLLECTION_NAME)
-
-def format_documents(documents: List[Document]) -> List[str]:
-    """Format the documents"""
-    return [f"Document {i+1}:\n{doc.page_content}" for i, doc in enumerate(documents)]
-
+collection = get_collection(database_uri="./intellidesign.db", collection_name=COLLECTION_NAME)
 
 def message_history_context_formatter(summary, messages, document_context=None):
     """Format the message history and context"""
@@ -69,7 +64,7 @@ def vectorstore_retrieval(state: GraphState) -> GraphState:
     print("---RETRIEVE DOCUMENTS---")
     question = state.get("question", "")
     documents = search_vectorstore(
-        collection=collection,
+        col=collection,
         query=question,
         k=3,
     )

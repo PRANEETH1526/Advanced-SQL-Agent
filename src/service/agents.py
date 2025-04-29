@@ -4,10 +4,11 @@ from langgraph.pregel import Pregel
 
 from agents.sql_agent.sql_agent import sql_agent
 from agents.adaptive_rag_agent.adaptive_rag_agent import adaptive_rag_agent
+from agents.react_agent.react_agent import react_agent
 
 from service.schema import AgentInfo
 
-DEFAULT_AGENT = "sql-agent"
+DEFAULT_AGENT = "react-agent"
 
 @dataclass
 class Agent:
@@ -19,8 +20,8 @@ agents: dict[str, Agent] = {
     "sql-agent": Agent(
         description="An assistant that dynamically generates and executes SQL queries on the Intellidesign database", graph=sql_agent
     ),
-    "rag-agent": Agent(
-        description="An assistant that retrieves information on Intellidesign data", graph=adaptive_rag_agent
+    "react-agent": Agent(
+        description="A smart Intellidesign assistant with web search and a calculator", graph=react_agent
     ),
 }
 

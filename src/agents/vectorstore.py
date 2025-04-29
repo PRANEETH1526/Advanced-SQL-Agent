@@ -4,7 +4,7 @@ from typing import Dict, Any, List
 from pymilvus import MilvusClient, DataType, Collection, AnnSearchRequest, WeightedRanker, connections
 
 DATABASE_URI = "./intellidesign.db"
-COLLECTION_NAME = "sql_agent" # default collection name
+COLLECTION_NAME = "all" # default collection name
 
 import nltk
 from nltk.corpus import stopwords
@@ -14,14 +14,14 @@ nltk.download('punkt')
 nltk.download('stopwords')
 stop_words = set(stopwords.words('english'))
 
-def get_collection(collection_name) -> Collection:
+def get_collection(database_uri=DATABASE_URI, collection_name=COLLECTION_NAME) -> Collection:
     """
     Connect to the Milvus server and get the collection.
     Returns:
         Collection: The Milvus collection.
     """
     connections.connect(
-        uri=DATABASE_URI,
+        uri=database_uri,
         alias="default",
     ) 
     return Collection(collection_name)

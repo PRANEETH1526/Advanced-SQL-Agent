@@ -38,7 +38,7 @@ def download_db():
     db = SQLDatabase.from_uri(DATABASE_URI)
     return db
 
-collection = get_collection(COLLECTION_NAME)
+collection = get_collection(database_uri="./sql_agent.db", collection_name=COLLECTION_NAME)
 db = download_db()
 
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)

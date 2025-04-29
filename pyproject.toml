@@ -18,6 +18,7 @@ dependencies = [
     "langgraph>=0.3.20",
     "langgraph-checkpoint-sqlite>=2.0.6",
     "nltk>=3.9.1",
+    "numexpr>=2.10.2",
     "pydantic>=2.10.6",
     "pymilvus>=2.5.6",
     "pymilvus-model>=0.3.2",
