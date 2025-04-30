@@ -4,7 +4,7 @@ from typing import Dict, Any, List
 from pymilvus import MilvusClient, DataType, Collection, AnnSearchRequest, WeightedRanker, connections
 
 DATABASE_URI = "./intellidesign.db"
-COLLECTION_NAME = "all" # default collection name
+COLLECTION_NAME = "sql_agent" # default collection name
 
 import nltk
 from nltk.corpus import stopwords

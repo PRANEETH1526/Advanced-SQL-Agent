@@ -32,14 +32,13 @@ from agents.sql_agent.prompts import (
 )
 
 DATABASE_URI = "mariadb+pymysql://userconnect@10.1.93.4/cms" 
-COLLECTION_NAME = "sql_agent"
 
 def download_db():
     db = SQLDatabase.from_uri(DATABASE_URI)
     return db
 
-collection = get_collection(database_uri="./sql_agent.db", collection_name=COLLECTION_NAME)
 db = download_db()
+collection = get_collection(database_uri="intellidesign.db", collection_name="sql_agent")
 
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 
