@@ -14,12 +14,14 @@ nltk.download('punkt')
 nltk.download('stopwords')
 stop_words = set(stopwords.words('english'))
 
+
 def get_collection(database_uri=DATABASE_URI, collection_name=COLLECTION_NAME) -> Collection:
     """
     Connect to the Milvus server and get the collection.
     Returns:
         Collection: The Milvus collection.
     """
+    connections.disconnect("default")
     connections.connect(
         uri=database_uri,
         alias="default",

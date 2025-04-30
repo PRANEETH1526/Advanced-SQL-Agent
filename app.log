@@ -1,0 +1,18 @@
+[nltk_data] Downloading package punkt to /home/lorenzo/nltk_data...
+[nltk_data]   Package punkt is already up-to-date!
+[nltk_data] Downloading package stopwords to
+[nltk_data]     /home/lorenzo/nltk_data...
+[nltk_data]   Package stopwords is already up-to-date!
+INFO:     Started server process [1416553]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:51196 - "POST /stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46422 - "POST /stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57440 - "POST /stream HTTP/1.1" 200 OK
+Error parsing message: Unsupported message type: RemoveMessage
+Error parsing message: Unsupported message type: RemoveMessage
+Error parsing message: Unsupported message type: RemoveMessage
+Error parsing message: Unsupported message type: RemoveMessage
+Error parsing message: Unsupported message type: RemoveMessage
+Error parsing message: Unsupported message type: RemoveMessage

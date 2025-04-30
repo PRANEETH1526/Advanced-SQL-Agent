@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from langgraph.pregel import Pregel
 
 from agents.sql_agent.sql_agent import sql_agent
-from agents.adaptive_rag_agent.adaptive_rag_agent import adaptive_rag_agent
 from agents.react_agent.react_agent import react_agent
 
 from service.schema import AgentInfo

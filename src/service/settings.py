@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     MODE: str | None = None
 
     HOST: str = "0.0.0.0"
-    PORT: int = 8080
+    PORT: int = 5001
 
     OPENWEATHERMAP_API_KEY: SecretStr | None = None
 
