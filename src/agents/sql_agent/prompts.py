@@ -57,7 +57,8 @@ You will receive the following information:
 Task: Organise the information from the selected tables and their schemas into a structured format and to eliminate fields in the schemas that are not relevant to the user question.
 When in doubt, keep the field. Retain the COMMENT section of the schema including all the joins information which is crucial. 
 
-Optionally you may be given the information you generated in the previous iteration. Fill in the missing information given the new information.
+Optionally you may be given the information you generated in the previous iteration. Fill in the missing information given the new information. 
+You MUST NOT remove any information from the previous iteration but you can add new information.
 
 Output Format:
 - Tables: <A brief description of the table and the COMMENT section of the schema if there is one>
@@ -73,20 +74,27 @@ contextualiser_prompt = ChatPromptTemplate.from_messages(
 )
 
 sufficient_tables_system = """ 
-Task: You receive schema and relationships information about the tables selected by the Selector LLM along with the original user query. 
-Your job is to determine whether the fields and tables provided in the selected tables are sufficient to generate an SQL query that can be executed to answer the user's query.
-If they are not sufficient, you must provide a clear explanation of what is missing and suggest additional tables.
+You are a specialist at evaluating the sufficiency of information for generating SQL queries.
+
+Task:
+You are given organized information about a user query, along with a list of schema details and table relationships selected by a Selector LLM. Your task is to determine if the currently selected tables and their fields are sufficient to generate an executable SQL query that answers the user’s question.
 
 Instructions:
 
-Sufficiency Evaluation:
-Use chain of thought reasoning to determine that if appropriately joining the provided tables, we have sufficient information to answer the user's query. Refer to the example sql query provided in the context if available.
-If this is the case, state that the selection is sufficient. 
-If any critical tables and their information or relevant fields from the current tables are missing, mark the decision as insufficient. Default to "sufficient" if you are unsure.
+1. Sufficiency Evaluation:
+Use chain-of-thought reasoning to assess whether, by properly joining the selected tables, there is enough information to answer the query.
+If any critical information is missing (e.g., required fields, table relationships, or key attributes), you may mark the selection as insufficient.
+However, before concluding insufficiency, verify carefully that the required information is not already covered by the selected tables or their known relationships.
+If uncertain, default to "sufficient" to avoid overestimating missing elements.
 
-Output Format:
-Sufficient: True if there is enough information to generate an SQL query. Return False if there is not enough information.
-Reason: If the tables/information is sufficient, return nothing. If the tables/information provided is insufficient, suggest ALL the tables/fields that could be relevant that hasnt been included.
+2. Output Format:
+Sufficient: Return True if the current selection is sufficient. Return False if it is not.
+Reason: If True, omit this field. If False, provide a clear explanation of what's missing. Only suggest tables or fields that are not already present in the selected list.
+
+Additional Notes:
+Do not suggest a table or field that is already included in the selection.
+If the missing data is a field within an already selected table, suggest only the missing field(s), not the entire table.
+Reference the example SQL query (if provided) to guide your reasoning.
 """
 
 sufficient_tables_prompt = ChatPromptTemplate.from_messages(
@@ -101,17 +109,17 @@ sufficient_tables_llm = llm.with_structured_output(SufficientTables)
 query_gen_system = """
 You are an expert SQL developer.
 
-You are provided with a user question, a list of table names, schema summaries, join conditions, and any additional notes necessary for constructing a MariaDB SQL query. 
+You are provided with a user question, and structure information necessary for constructing a MariaDB SQL query. 
 Additionally, you may sometimes receive an error message indicating that the previously generated query failed upon execution. 
 
 Instructions:
 
-If you don't get an error message, use chain of thought reasoning to analyse the information in depth and generate an SQL query that is syntactically correct.
+If you don't get an error message, use the information to generate an SQL query that is syntactically correct for the user question.
 
 Initial Query Generation:
-Analyze the Context: Use the provided context to understand the tables involved, their schemas, join conditions, and any filtering or grouping requirements needed to answer the user query.
-Construct the SQL Query: Generate a valid MariaDB SQL query that incorporates all necessary joins, filters, and calculations. Joins must use indexed fields. Ensure that the query is efficient and optimized for performance.
-Output Format: Return a single SQL statement. Do not hallucinate any field names or table names. Use the field names and table names provided in the context.
+Refer to the example if provided. 
+Construct the SQL Query: Generate a valid MariaDB SQL query that incorporates all necessary joins, filters, and calculations. Joins must use indexed fields. 
+Output Format: Return a single SQL statement. Do not hallucinate any field names or table names.
 
 If you get an error message, generate a new SQL query that is syntactically correct.
 
@@ -193,8 +201,6 @@ You will receive a user question, some intermediate reasoning to generate an sql
 Your job is to answer the user question by interpreting the information provided in the messages and present it in a structured and detailed manner.
 
 Provide a structured chain of thought reasoning for your answer. Go through the reasoning step by step and the intermediate results.
-
-Your answer should be in the same language as the user question.
 
 If you don't have enough information to answer the question, say "I don't know".
 """

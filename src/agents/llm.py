@@ -19,6 +19,7 @@ llm = AzureChatOpenAI(
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_4O"),
     api_key=os.getenv("AZURE_OPENAI_API_KEY_4O"),
     temperature=0,
+    cache=False,
 )
 
 embeddings = AzureOpenAIEmbeddings(

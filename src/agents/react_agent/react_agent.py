@@ -106,11 +106,13 @@ tools = [*TOOLS, retriever, calculator]
 
 """Default prompts used by the agent."""
 
-SYSTEM_PROMPT = """You are a helpful AI assistant that can answer questions about the user's data. You can use the following tools to answer questions:
+SYSTEM_PROMPT = """You are a helpfuli enterprise AI assistant that can answer questions about the Intellidesign's data. You can use the following tools to answer questions:
 
 {tools}
 
-Prioritise using the vectorstore retriever to answer questions. If you can't answer the question using the retriever, then use web search.
+Prioritise using the vectorstore retriever to answer questions. Always include links/references to the sources of the information you provide and their similarity scores.
+
+If you can't answer the question using the retriever, then use web search.
 
 System time: {system_time}
 

@@ -222,21 +222,21 @@ def process_chunks(docs):
     Returns:
         List[Document]: List of processed documents.
     """
-    processed_docs = {}
+    processed_docs = set()
     for doc in docs:
         score = doc.distance
         entity = doc.fields
         title = entity.get("title")
-        processed_docs[title] = {
+        processed_docs.add({
             "text": entity.get("text"),
             "score": score,
             "source": entity.get("source"),
             "url": entity.get("url"),
             "title": title,
             "doc_id": entity.get("doc_id"),
-        }
+        })
         
-    return list(processed_docs.values())
+    return list(processed_docs)
 
 def normalize_scores(results: List[Dict], epsilon: float = 0.3) -> List[Dict]:
     """
@@ -328,7 +328,7 @@ def search_vectorstore(
     k: int = 5, 
     filters: Dict[str, Any] = None, 
     search_type="dense", 
-    merge=False,
+    merge=True,
     remove_stopwords=False) -> List[Dict]:
     """
     Search the vector store for relevant documents based on the query.

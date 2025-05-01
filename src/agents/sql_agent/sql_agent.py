@@ -58,7 +58,7 @@ class State(TypedDict):
     query_tasks: list[str]
     sql_queries: Annotated[list, operator.add]
     query: str
-    max_retries: int = 3
+    max_retries: int = 1
     answer: str
 
 
@@ -164,7 +164,6 @@ def get_schema_tool(table_name: str) -> str:
     result = f"Selected Table {table_name}\n\nSchema: {result}"
     return result
 
-
 def transform_user_question(state: State) -> State:
     prompt = transform_user_question_prompt.format(messages=state["messages"])
     response = transform_user_question_llm.invoke(prompt)
@@ -202,7 +201,6 @@ def contextualiser(state: State) -> State:
     get_cache = state.get("retrieve_cache", False)
     information = information = state.get("information", "")
     if not get_cache:
-        response = AIMessage(content="Retrieving cached information from the database...")
         query = "\n".join(
             [message.content for message in messages]
         )
@@ -212,6 +210,7 @@ def contextualiser(state: State) -> State:
             limit=1,
         )[0].fields.get("text")
         information += context
+        response = AIMessage(content=f"Retrieving cached information from the database...{information}")
     else:
         if information:
             messages.append(AIMessage(content=f"Fill in the gaps, retain all this information: {information}"))
@@ -227,14 +226,13 @@ def sufficient_tables(state: State) -> State:
     information = AIMessage(content=state["information"])
     messages = [user_question, information]
     prompt = sufficient_tables_prompt.format(messages=messages)
-    print(prompt)
     response = sufficient_tables_llm.invoke(prompt)
     full_response = (
-        f"Sufficient Tables: {response.sufficient}\n\nReason: {response.reason}"
+        f"Sufficient Tables: {response.decision}\n\nReason: {response.reason}"
     )
     return {
         "messages": [AIMessage(content=full_response)],
-        "sufficient_info": response.sufficient,
+        "sufficient_info": response.decision,
     }
 
 
@@ -303,10 +301,11 @@ def final_answer(state: State) -> State:
     messages = [
         HumanMessage(content=state["question"]),
         AIMessage(content=state.get("information", "")),
+        AIMessage(content=state["query"]),
         state["messages"][-1],
     ]
     prompt = answer_and_reasoning_prompt.format(messages=messages)
-    response = mini_llm.invoke(prompt)
+    response = llm.invoke(prompt)
     return {
         "answer": response.content,
         "messages": [AIMessage(content=response.content)],
