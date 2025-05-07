@@ -197,7 +197,6 @@ async def message_generator(
             if not isinstance(stream_event, tuple):
                 continue
             stream_mode, event = stream_event
-            print(f"EVENT: {event.metadata}")
             new_messages = []
             if stream_mode == "updates":
                 for node, updates in event.items():
@@ -241,6 +240,7 @@ async def message_generator(
                 if not isinstance(msg, AIMessageChunk):
                     continue
                 content = remove_tool_calls(msg.content)
+                print(content)
                 if content:
                     # Empty content in the context of OpenAI usually means
                     # that the model is asking for a tool to be invoked.
