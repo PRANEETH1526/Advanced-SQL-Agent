@@ -197,7 +197,7 @@ async def message_generator(
             if not isinstance(stream_event, tuple):
                 continue
             stream_mode, event = stream_event
-            print(f"EVENT: {event}")
+            print(f"EVENT: {event.metadata}")
             new_messages = []
             if stream_mode == "updates":
                 for node, updates in event.items():
