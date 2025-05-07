@@ -201,16 +201,13 @@ def contextualiser(state: State) -> State:
     get_cache = state.get("retrieve_cache", False)
     information = information = state.get("information", "")
     if not get_cache:
-        query = "\n".join(
-            [message.content for message in messages]
-        )
         context = dense_search(
             collection,
-            query,
+            state["question"],
             limit=1,
         )[0].fields.get("text")
         information += context
-        response = AIMessage(content=f"Retrieving cached information from the database...{information}")
+        response = AIMessage(content=f"Retrieving cached information from the database...\n\n{information}")
     else:
         if information:
             messages.append(AIMessage(content=f"Fill in the gaps, retain all this information: {information}"))
