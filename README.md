@@ -41,6 +41,7 @@ http://localhost:8080
 | POST   | `/history`                           | Get chat history for a thread                         |
 | POST   | `/{agent_id}/update_information`     | Fork & update “information” field, then stream SSE    |
 | POST   | `/{agent_id}/save_information`       | Save the “information” field into your vector DB      |
+| POST   | `/feedback                           | Provide feedback for the run                          |
 
 ---
 

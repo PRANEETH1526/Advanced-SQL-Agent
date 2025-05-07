@@ -69,6 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 agent = get_agent(a.key)
                 agent.checkpointer = saver
             yield
+        print("Database initialized successfully.")
     except Exception as e:
         logger.error(f"Error during database initialization: {e}")
         raise
@@ -357,6 +358,18 @@ async def save_information(
         raise HTTPException(status_code=500, detail="Collection not found")
     insert_data(collection, info)
     return ContextResponse(information=info)
+
+@router.post("/{agent_id}/get_state_history")
+async def get_state_history(
+    req: ContextRequest,
+    agent_id: str = DEFAULT_AGENT,
+) -> ContextResponse:
+    """
+    Get the state history for a given thread ID.
+    """
+    agent: Pregel = get_agent(agent_id)
+    config = {"configurable": {"thread_id": req.thread_id}}
+    return list(agent.graph.get_state_history(config))
 
 
 @router.post("/feedback")
