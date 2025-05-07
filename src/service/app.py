@@ -372,7 +372,7 @@ async def get_state_history(
     """
     agent: Pregel = get_agent(agent_id)
     config = {"configurable": {"thread_id": req.thread_id}}
-    return list(agent.graph.get_state_history(config))
+    return list(agent.get_state_history(config))
 
 
 @router.post("/feedback")
