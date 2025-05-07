@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.concurrency import run_in_threadpool
 from langchain_core._api import LangChainBetaWarning
 from langchain_core.messages import AIMessage, AIMessageChunk, AnyMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -354,9 +355,8 @@ async def save_information(
     Save the current 'information' field from the latest state for this thread.
     """
     agent: Pregel = get_agent(agent_id)
-    state = agent.get_state(
-        config=RunnableConfig(configurable={"thread_id": req.thread_id})
-    )
+    config = RunnableConfig(configurable={"thread_id": req.thread_id})
+    state = await run_in_threadpool(agent.get_state, config)
     info = state.values.get("information")
     collection = get_collection("./intellidesign.db", "sql_agent")
     if not collection:
