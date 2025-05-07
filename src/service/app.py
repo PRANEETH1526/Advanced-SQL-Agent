@@ -39,6 +39,8 @@ from service.utils import (
 
 from agents.vectorstore import get_collection, insert_data
 
+import asyncio
+
 warnings.filterwarnings("ignore", category=LangChainBetaWarning)
 logger = logging.getLogger(__name__)
 
@@ -372,7 +374,13 @@ async def get_state_history(
     """
     agent: Pregel = get_agent(agent_id)
     config = {"configurable": {"thread_id": req.thread_id}}
-    return list(agent.get_state_history(config))
+    loop = asyncio.get_event_loop()
+    # offload the sync call to a threadpool
+    history = await loop.run_in_executor(
+        None,                          # default threadpool
+        lambda: list(agent.graph.get_state_history(config)),
+    )
+    return history 
 
 
 @router.post("/feedback")
