@@ -378,7 +378,7 @@ async def get_state_history(
     # offload the sync call to a threadpool
     history = await loop.run_in_executor(
         None,                          # default threadpool
-        lambda: list(agent.graph.get_state_history(config)),
+        lambda: list(agent.get_state_history(config)),
     )
     return history 
 
