@@ -31,14 +31,16 @@ http://localhost:8080
 
 ## 📑 Endpoints Overview
 
-| Method | Endpoint                    | Description                      |
-|--------|-----------------------------|----------------------------------|
-| GET    | `/health`                   | Health check                     |
-| POST   | `/invoke`                   | Invoke default agent             |
-| POST   | `/{agent_id}/invoke`        | Invoke specific agent            |
-| POST   | `/stream`                   | Stream from default agent        |
-| POST   | `/{agent_id}/stream`        | Stream from specific agent       |
-| POST   | `/history`                  | Get chat history for a thread    |
+| Method | Endpoint                             | Description                                           |
+|--------|--------------------------------------|-------------------------------------------------------|
+| GET    | `/health`                            | Health check                                          |
+| POST   | `/invoke`                            | Invoke default agent                                  |
+| POST   | `/{agent_id}/invoke`                 | Invoke specific agent                                 |
+| POST   | `/stream`                            | Stream from default agent                             |
+| POST   | `/{agent_id}/stream`                 | Stream from specific agent                            |
+| POST   | `/history`                           | Get chat history for a thread                         |
+| POST   | `/{agent_id}/update_information`     | Fork & update “information” field, then stream SSE    |
+| POST   | `/{agent_id}/save_information`       | Save the “information” field into your vector DB      |
 
 ---
 
@@ -125,6 +127,66 @@ data: {"type": "token", "content": " upon"}
 ...
 
 data: [DONE]
+```
+
+---
+
+## 📝 Update “Information” & Stream (SSE)
+
+**POST** `/{agent_id}/update_information`
+
+Forks off the given checkpoint, overwrites the `information` field in state, then streams the replay + continuation as SSE.
+
+**Headers:**
+```http
+Authorization: Bearer <AUTH_SECRET>
+Content-Type: application/json
+Accept: text/event-stream
+```
+
+**Request Body:**
+```json
+{
+  "thread_id": "847c6285-8fc9-4560-a83f-4e6285809254",
+  "checkpoint_id": "123e4567-e89b-12d3-a456-426614174000",
+  "information": "New context for SQL agent to use"
+}
+```
+
+**Response:** Server-Sent Events (SSE)
+```
+data: {"type": "message", "content": { ... }}
+...
+data: [DONE]
+```
+
+---
+
+## 💾 Save “Information” to Vector DB
+
+**POST** `/{agent_id}/save_information`
+
+Adds the supplied `information` text into your vector database under the given `thread_id`.
+
+**Headers:**
+```http
+Authorization: Bearer <AUTH_SECRET>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "thread_id": "847c6285-8fc9-4560-a83f-4e6285809254",
+  "information": "Additional context for embedding and retrieval"
+}
+```
+
+**Response:** `200 OK`  
+```json
+{
+  "status": "ok"
+}
 ```
 
 ---

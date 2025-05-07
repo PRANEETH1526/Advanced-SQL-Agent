@@ -151,3 +151,14 @@ class ChatHistoryInput(BaseModel):
 
 class ChatHistory(BaseModel):
     messages: list[ChatMessage]
+
+class InformationUpdateInput(BaseModel):
+    thread_id: str
+    checkpoint_id: str
+    information: str
+
+class ContextRequest(BaseModel):
+    thread_id: str
+
+class ContextResponse(BaseModel):
+    information: str | None

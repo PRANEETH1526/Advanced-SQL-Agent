@@ -27,12 +27,17 @@ from service.schema import (
     FeedbackResponse,
     StreamInput,
     UserInput,
+    InformationUpdateInput,
+    ContextRequest,
+    ContextResponse
 )
 from service.utils import (
     convert_message_content_to_string,
     langchain_to_chat_message,
     remove_tool_calls,
 )
+
+from agents.vectorstore import get_collection, insert_data
 
 warnings.filterwarnings("ignore", category=LangChainBetaWarning)
 logger = logging.getLogger(__name__)
@@ -276,6 +281,82 @@ async def stream(user_input: StreamInput, agent_id: str = DEFAULT_AGENT) -> Stre
         message_generator(user_input, agent_id),
         media_type="text/event-stream",
     )
+
+@router.post(
+    "/{agent_id}/update_information",
+    response_class=StreamingResponse,
+    responses=_sse_response_example(),
+)
+async def update_information(
+    payload: InformationUpdateInput,
+    agent_id: str = DEFAULT_AGENT,
+) -> StreamingResponse:
+    """
+    Fork off at payload.checkpoint_id, overwrite 'information', then
+    stream the replay + continuation via SSE.
+    """
+    agent: Pregel = get_agent(agent_id)
+
+    fork_cfg = {
+        "configurable": {
+            "thread_id": payload.thread_id,
+            "checkpoint_id": payload.checkpoint_id,
+        }
+    }
+    try:
+        new_cfg = agent.update_state(fork_cfg, {"information": payload.information})
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fork/update state: {e}",
+        )
+
+    async def _stream():
+        async for ev in agent.astream(None, new_cfg, stream_mode=["updates", "messages", "custom"]):
+            if not isinstance(ev, tuple):
+                continue
+            mode, body = ev
+            msgs = []
+            if mode == "updates":
+                for _, ups in body.items():
+                    msgs.extend(ups.get("messages", []))
+            elif mode == "custom":
+                msgs.append(body)
+            elif mode == "messages":
+                msg, _ = body
+                if isinstance(msg, AIMessageChunk):
+                    msgs.append(msg)
+
+            for m in msgs:
+                try:
+                    cm = langchain_to_chat_message(m)
+                except:
+                    continue
+                yield f"data: {json.dumps({'type':'message','content':cm.model_dump()})}\n\n"
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
+
+
+@router.post("/{agent_id}/save_information", response_model=ContextResponse)
+async def save_information(
+    req: ContextRequest,
+    agent_id: str = DEFAULT_AGENT,
+) -> ContextResponse:
+    """
+    Save the current 'information' field from the latest state for this thread.
+    """
+    agent: Pregel = get_agent(agent_id)
+    state = agent.get_state(
+        config=RunnableConfig(configurable={"thread_id": req.thread_id})
+    )
+    info = state.values.get("information")
+    collection = get_collection("./intellidesign.db", "sql_agent")
+    if not collection:
+        raise HTTPException(status_code=500, detail="Collection not found")
+    insert_data(collection, info)
+    return ContextResponse(information=info)
 
 
 @router.post("/feedback")
