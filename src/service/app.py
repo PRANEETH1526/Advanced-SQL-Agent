@@ -133,7 +133,7 @@ async def _handle_input(user_input: UserInput, agent: Pregel) -> tuple[dict[str,
         "config": config,
     }
 
-    return kwargs, run_id
+    return kwargs, run_id, thread_id
 
 
 @router.post("/{agent_id}/invoke")
@@ -152,7 +152,7 @@ async def invoke(user_input: UserInput, agent_id: str = DEFAULT_AGENT) -> ChatMe
     # you'd want to include it. You could update the API to return a list of ChatMessages
     # in that case.
     agent: Pregel = get_agent(agent_id)
-    kwargs, run_id = await _handle_input(user_input, agent)
+    kwargs, run_id, thread_id = await _handle_input(user_input, agent)
     try:
         response_events: list[tuple[str, Any]] = await agent.ainvoke(**kwargs, stream_mode=["updates", "values"])  # type: ignore # fmt: skip
         response_type, response = response_events[-1]
@@ -169,6 +169,7 @@ async def invoke(user_input: UserInput, agent_id: str = DEFAULT_AGENT) -> ChatMe
             raise ValueError(f"Unexpected response type: {response_type}")
 
         output.run_id = str(run_id)
+        output.thread_id = str(thread_id)
         return output
     except Exception as e:
         logger.error(f"An exception occurred: {e}")
@@ -184,7 +185,7 @@ async def message_generator(
     This is the workhorse method for the /stream endpoint.
     """
     agent: Pregel = get_agent(agent_id)
-    kwargs, run_id = await _handle_input(user_input, agent)
+    kwargs, run_id, thread_id = await _handle_input(user_input, agent)
 
     try:
         # Process streamed events from the graph and yield messages over the SSE stream.
@@ -217,6 +218,7 @@ async def message_generator(
                 try:
                     chat_message = langchain_to_chat_message(message)
                     chat_message.run_id = str(run_id)
+                    chat_message.thread_id = str(thread_id)
                 except Exception as e:
                     logger.error(f"Error parsing message: {e}")
                     yield f"data: {json.dumps({'type': 'error', 'content': 'Unexpected error'})}\n\n"
