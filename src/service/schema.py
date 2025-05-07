@@ -172,3 +172,11 @@ class ContextRequest(BaseModel):
 
 class ContextResponse(BaseModel):
     information: str | None
+
+class StateHistoryResponse(BaseModel):
+    """Response for state history."""
+
+    history: list[Any] = Field(
+        description="List of states in the state history.",
+        default=[],
+    )

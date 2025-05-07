@@ -29,7 +29,8 @@ from service.schema import (
     UserInput,
     InformationUpdateInput,
     ContextRequest,
-    ContextResponse
+    ContextResponse,
+    StateHistoryResponse
 )
 from service.utils import (
     convert_message_content_to_string,
@@ -240,7 +241,6 @@ async def message_generator(
                 if not isinstance(msg, AIMessageChunk):
                     continue
                 content = remove_tool_calls(msg.content)
-                print(content)
                 if content:
                     # Empty content in the context of OpenAI usually means
                     # that the model is asking for a tool to be invoked.
@@ -364,11 +364,11 @@ async def save_information(
     insert_data(collection, info)
     return ContextResponse(information=info)
 
-@router.post("/{agent_id}/get_state_history")
+@router.post("/{agent_id}/get_state_history", response_model=StateHistoryResponse)
 async def get_state_history(
     req: ContextRequest,
     agent_id: str = DEFAULT_AGENT,
-) -> ContextResponse:
+) -> StateHistoryResponse:
     """
     Get the state history for a given thread ID.
     """
@@ -380,7 +380,7 @@ async def get_state_history(
         None,                          # default threadpool
         lambda: list(agent.get_state_history(config)),
     )
-    return history 
+    return StateHistoryResponse(history=history) 
 
 
 @router.post("/feedback")
