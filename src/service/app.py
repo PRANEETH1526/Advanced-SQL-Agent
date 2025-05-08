@@ -380,6 +380,8 @@ async def get_state_history(
         None,                          # default threadpool
         lambda: list(agent.get_state_history(config)),
     )
+    print(f"State 2: {history[2].values}")
+    print(f"Next State: {history[2].next}")
     return StateHistoryResponse(history=history) 
 
 
