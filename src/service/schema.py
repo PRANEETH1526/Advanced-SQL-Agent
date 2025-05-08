@@ -164,7 +164,6 @@ class ChatHistory(BaseModel):
 
 class InformationUpdateInput(BaseModel):
     thread_id: str
-    checkpoint_id: str
     information: str
 
 class ContextRequest(BaseModel):
