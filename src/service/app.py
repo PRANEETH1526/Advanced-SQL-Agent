@@ -303,13 +303,19 @@ async def update_information(
     stream the replay + continuation via SSE.
     """
     agent: Pregel = get_agent(agent_id)
-
-    fork_cfg = {
-        "configurable": {
-            "thread_id": payload.thread_id,
-            "checkpoint_id": payload.checkpoint_id,
-        }
-    }
+    config = {"configurable": {"thread_id": payload.thread_id}}
+    loop = asyncio.get_event_loop()
+    # offload the sync call to a threadpool
+    history = await loop.run_in_executor(
+        None,                          # default threadpool
+        lambda: list(agent.get_state_history(config)),
+    )
+    fork_cfg = next(
+    (h.config for h in history 
+     if h.next and h.next[0] == "query_gen"),
+        None
+    )
+    
     try:
         new_cfg = agent.update_state(fork_cfg, {"information": payload.information})
     except Exception as e:
@@ -380,8 +386,6 @@ async def get_state_history(
         None,                          # default threadpool
         lambda: list(agent.get_state_history(config)),
     )
-    print(f"State 2: {history[2].values}")
-    print(f"Next State: {history[2].next}")
     return StateHistoryResponse(history=history) 
 
 
