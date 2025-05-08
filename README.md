@@ -41,7 +41,10 @@ http://localhost:8080
 | POST   | `/history`                           | Get chat history for a thread                         |
 | POST   | `/{agent_id}/update_information`     | Fork & update “information” field, then stream SSE    |
 | POST   | `/{agent_id}/save_information`       | Save the “information” field into your vector DB      |
-| POST   | `/feedback                           | Provide feedback for the run                          |
+| POST   | `/{agent_id}/delete_information`     | Delete the current “information” field                |
+| POST   | `/{agent_id}/get_information`        | Get the current “information” field                   |
+| POST   | `/{agent_id}/get_state_history`      | Get the full state history for a given thread ID      |
+| POST   | `/feedback`                          | Provide feedback for the run                          |
 
 ---
 
@@ -51,7 +54,6 @@ http://localhost:8080
 
 Returns service status.
 
-**Response:**
 ```json
 {
   "status": "ok"
@@ -65,15 +67,6 @@ Returns service status.
 **POST** `/invoke`  
 **POST** `/{agent_id}/invoke`
 
-Invokes the agent and returns the **final AI response**.
-
-**Headers:**
-```http
-Authorization: Bearer <AUTH_SECRET>
-Content-Type: application/json
-```
-
-**Request Body:**
 ```json
 {
   "message": "Latest PO",
@@ -100,14 +93,6 @@ Content-Type: application/json
 
 Streams intermediate messages and/or token chunks from the agent.
 
-**Headers:**
-```http
-Authorization: Bearer <AUTH_SECRET>
-Content-Type: application/json
-Accept: text/event-stream
-```
-
-**Request Body:**
 ```json
 {
   "message": "How many capacitors were ordered in 2023",
@@ -120,13 +105,8 @@ Accept: text/event-stream
 **Response:** Server-Sent Events (SSE)
 ```
 data: {"type": "message", "content": { ... }}
-
 data: {"type": "token", "content": "Once"}
-
-data: {"type": "token", "content": " upon"}
-
 ...
-
 data: [DONE]
 ```
 
@@ -136,20 +116,9 @@ data: [DONE]
 
 **POST** `/{agent_id}/update_information`
 
-Forks off the given checkpoint, overwrites the `information` field in state, then streams the replay + continuation as SSE.
-
-**Headers:**
-```http
-Authorization: Bearer <AUTH_SECRET>
-Content-Type: application/json
-Accept: text/event-stream
-```
-
-**Request Body:**
 ```json
 {
   "thread_id": "847c6285-8fc9-4560-a83f-4e6285809254",
-  "checkpoint_id": "123e4567-e89b-12d3-a456-426614174000",
   "information": "New context for SQL agent to use"
 }
 ```
@@ -157,7 +126,6 @@ Accept: text/event-stream
 **Response:** Server-Sent Events (SSE)
 ```
 data: {"type": "message", "content": { ... }}
-...
 data: [DONE]
 ```
 
@@ -167,26 +135,80 @@ data: [DONE]
 
 **POST** `/{agent_id}/save_information`
 
-Adds the supplied `information` text into your vector database under the given `thread_id`.
-
-**Headers:**
-```http
-Authorization: Bearer <AUTH_SECRET>
-Content-Type: application/json
-```
-
-**Request Body:**
 ```json
 {
   "thread_id": "847c6285-8fc9-4560-a83f-4e6285809254",
-  "information": "Additional context for embedding and retrieval"
+}
+```
+
+**Response:**
+```json
+{
+  "information": "context for embedding and retrieval"
+}
+```
+
+---
+
+## ❌ Delete “Information” from Vector DB
+
+**POST** `/{agent_id}/delete_information`
+
+```json
+{
+  "thread_id": "847c6285-8fc9-4560-a83f-4e6285809254"
 }
 ```
 
 **Response:** `200 OK`  
 ```json
 {
-  "status": "ok"
+  "information": "Deleted information with ID: <uuid>"
+}
+```
+
+---
+
+## 📥 Get “Information” from Agent State
+
+**POST** `/{agent_id}/get_information`
+
+```json
+{
+  "thread_id": "847c6285-8fc9-4560-a83f-4e6285809254"
+}
+```
+
+**Response:** `200 OK`  
+```json
+{
+  "information": "Current stored context or knowledge for this thread"
+}
+```
+
+---
+
+## 🧠 Get State History
+
+**POST** `/{agent_id}/get_state_history`
+
+```json
+{
+  "thread_id": "847c6285-8fc9-4560-a83f-4e6285809254"
+}
+```
+
+**Response:** `200 OK`  
+```json
+{
+  "history": [
+    {
+      "config": {...},
+      "state": {...},
+      "next": ["node_id"]
+    },
+    ...
+  ]
 }
 ```
 
@@ -196,15 +218,6 @@ Content-Type: application/json
 
 **POST** `/history`
 
-Returns the full message history for a given `thread_id`.
-
-**Headers:**
-```http
-Authorization: Bearer <AUTH_SECRET>
-Content-Type: application/json
-```
-
-**Request Body:**
 ```json
 {
   "thread_id": "847c6285-8fc9-4560-a83f-4e6285809254"
@@ -219,6 +232,26 @@ Content-Type: application/json
     { "type": "ai", "content": "Hi there!" }
   ]
 }
+```
+
+---
+
+## 🗣️ Provide Feedback
+
+**POST** `/feedback`
+
+```json
+{
+  "run_id": "uuid-123",
+  "key": "helpfulness",
+  "score": 1,
+  "kwargs": {}
+}
+```
+
+**Response:**
+```json
+{}
 ```
 
 ---
