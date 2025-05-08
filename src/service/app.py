@@ -39,7 +39,7 @@ from service.utils import (
     remove_tool_calls,
 )
 
-from agents.vectorstore import get_collection, insert_data
+from agents.vectorstore import get_collection, insert_data, delete_data
 
 import asyncio
 
@@ -299,7 +299,7 @@ async def update_information(
     agent_id: str = DEFAULT_AGENT,
 ) -> StreamingResponse:
     """
-    Fork off at payload.checkpoint_id, overwrite 'information', then
+    Fork off, overwrite 'information', then
     stream the replay + continuation via SSE.
     """
     agent: Pregel = get_agent(agent_id)
@@ -317,7 +317,7 @@ async def update_information(
     )
     
     try:
-        new_cfg = agent.update_state(fork_cfg, {"information": payload.information})
+        new_cfg = await agent.aupdate_state(fork_cfg, {"information": payload.information})
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -364,11 +364,48 @@ async def save_information(
     config = RunnableConfig(configurable={"thread_id": req.thread_id})
     state = await run_in_threadpool(agent.get_state, config)
     info = state.values.get("information")
+    question = state.values.get("question")
     collection = get_collection("./intellidesign.db", "sql_agent")
     if not collection:
         raise HTTPException(status_code=500, detail="Collection not found")
-    insert_data(collection, info)
+    insert_data(collection, f"Example Context for question: {question}\n\n{info}")
     return ContextResponse(information=info)
+
+
+@router.post("/{agent_id}/delete_information", response_model=ContextResponse)
+async def delete_information(
+    req: ContextRequest,
+    agent_id: str = DEFAULT_AGENT,
+) -> ContextResponse:   
+    """
+    Delete the current 'information' field from the latest state for this thread.
+    """
+    agent: Pregel = get_agent(agent_id)
+    config = RunnableConfig(configurable={"thread_id": req.thread_id})
+    state = await run_in_threadpool(agent.get_state, config)
+    info_id = state.values.get("information_id")
+    collection = get_collection("./intellidesign.db", "sql_agent")
+    if not collection:
+        raise HTTPException(status_code=500, detail="Collection not found")
+    # Delete the information from the collection
+    delete_data(collection, info_id)
+    return ContextResponse(information=f"Deleted information with ID: {info_id}")
+
+
+@router.post("/{agent_id}/get_information", response_model=ContextResponse)
+async def get_information(
+    req: ContextRequest,
+    agent_id: str = DEFAULT_AGENT,
+) -> ContextResponse:
+    """
+    Get the current 'information' field from the latest state for this thread.
+    """
+    agent: Pregel = get_agent(agent_id)
+    config = RunnableConfig(configurable={"thread_id": req.thread_id})
+    state = await run_in_threadpool(agent.get_state, config)
+    info = state.values.get("information")
+    return ContextResponse(information=info)
+
 
 @router.post("/{agent_id}/get_state_history", response_model=StateHistoryResponse)
 async def get_state_history(

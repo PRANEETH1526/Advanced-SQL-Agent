@@ -57,6 +57,7 @@ class State(TypedDict):
     retrieve_cache: bool
     sufficient_info: bool
     information: str
+    information_id: str
     query_tasks: list[str]
     sql_queries: Annotated[list, operator.add]
     query: str
@@ -202,12 +203,15 @@ def contextualiser(state: State) -> State:
     messages = [user_question] + db_info
     get_cache = state.get("retrieve_cache", False)
     information = information = state.get("information", "")
+    information_id = ""
     if not get_cache:
-        context = dense_search(
+        doc = dense_search(
             collection,
             state["question"],
             limit=1,
-        )[0].fields.get("text")
+        )[0]
+        context = doc.fields.get("text")
+        information_id = doc.id
         information += context
         response = AIMessage(content=f"Retrieving cached information from the database...\n\n{information}")
     else:
@@ -217,7 +221,7 @@ def contextualiser(state: State) -> State:
         response = llm.invoke(prompt)
         information = response.content
 
-    return {"messages": [response], "information": information, "retrieve_cache": True}
+    return {"messages": [response], "information": information, "information_id": information_id, "retrieve_cache": True}
 
 
 def sufficient_tables(state: State) -> State:

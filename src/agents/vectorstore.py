@@ -89,7 +89,6 @@ def delete_data(collection: Collection, doc_id: int):
     collection.delete(f"id == {doc_id}")
     print(f"Deleted document with ID {doc_id} from collection '{COLLECTION_NAME}'.")
 
-
 def dense_search(col: Collection, query: str, limit=10, expr=None) -> List[Dict]:
     """
     Perform a dense search in the Milvus collection.
@@ -378,6 +377,11 @@ def search_vectorstore(
 if __name__ == "__main__":
     # Example usage
     collection = get_collection()
-    
-    print(results)
-    delete_data(collection, 1)
+    score = dense_search(
+            collection,
+            "Purchase order",
+            limit=1,
+        )[0].id
+
+    print(score)
+        
