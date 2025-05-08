@@ -31,6 +31,8 @@ from agents.sql_agent.prompts import (
     query_router_llm
 )
 
+from datetime import datetime
+
 DATABASE_URI = "mariadb+pymysql://userconnect@10.1.93.4/cms" 
 
 def download_db():
@@ -223,7 +225,8 @@ def sufficient_tables(state: State) -> State:
     information = AIMessage(content=state["information"])
     messages = [user_question, information]
     prompt = sufficient_tables_prompt.format(messages=messages)
-    response = sufficient_tables_llm.invoke(prompt)
+    # add timestamp to the prompt
+    response = sufficient_tables_llm.invoke(f"Timestamp: {datetime.now()}\n\n{prompt}")
     full_response = (
         f"Sufficient Tables: {response.decision}\n\nReason: {response.reason}"
     )

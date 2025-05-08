@@ -79,6 +79,16 @@ def insert_data(collection: Collection, information: str):
     collection.insert(data)
     print(f"Inserted data into collection '{COLLECTION_NAME}'.")
 
+def delete_data(collection: Collection, doc_id: int):
+    """
+    Delete data from the Milvus collection.
+    Args:
+        collection (Collection): The Milvus collection.
+        doc_id (int): The document ID to delete.
+    """
+    collection.delete(f"id == {doc_id}")
+    print(f"Deleted document with ID {doc_id} from collection '{COLLECTION_NAME}'.")
+
 
 def dense_search(col: Collection, query: str, limit=10, expr=None) -> List[Dict]:
     """
@@ -364,3 +374,10 @@ def search_vectorstore(
     search_results = normalize_scores(search_results)
 
     return search_results
+
+if __name__ == "__main__":
+    # Example usage
+    collection = get_collection()
+    
+    print(results)
+    delete_data(collection, 1)
