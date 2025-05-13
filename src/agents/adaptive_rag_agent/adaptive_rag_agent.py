@@ -23,11 +23,9 @@ from agents.adaptive_rag_agent.prompts import (
 
 )
 
-COLLECTION_NAME = "sql_agent"
-
 web_search_tool = TavilySearchResults(max_results=3)
 
-collection = get_collection(database_uri="./intellidesign.db", collection_name=COLLECTION_NAME)
+collection = get_collection(database_uri="./intellidesign.db", collection_name="all")
 
 def message_history_context_formatter(summary, messages, document_context=None):
     """Format the message history and context"""
@@ -63,13 +61,27 @@ def vectorstore_retrieval(state: GraphState) -> GraphState:
     """Retrieve documents from the vectorstore"""
     print("---RETRIEVE DOCUMENTS---")
     question = state.get("question", "")
-    documents = search_vectorstore(
+    retrieved_docs = search_vectorstore(
         col=collection,
         query=question,
         k=3,
     )
-    print(documents)
-    return {"documents": documents, "question": question}
+
+    document_context_parts = []
+
+    for doc in retrieved_docs:
+        title = doc.get('title', 'Untitled')
+        score = int(doc.get('score', 0) * 100)
+        source = doc.get('url', f"{doc.get('source', '')}/{title}")
+        text = doc.get('text', '')
+
+        entry = (
+            f"- Source - (Title: {title}, Similarity Score: {score}, Source: {source})\n\n{text}\n"
+        )
+
+        document_context_parts.append(entry)
+
+    return {"documents": document_context_parts, "question": question}
 
 
 def generate_answer(state: GraphState) -> GraphState:
@@ -135,8 +147,9 @@ def web_search(state: GraphState) -> GraphState:
     question = state.get("question", "")
     documents = state.get("documents", [])
     web_search_results = web_search_tool.invoke({"query": question})
-    web_search_results = "\n".join([result["content"] for result in web_search_results])
-    return {"documents": documents + [web_search_results], "question": question}
+    web_search_results = [result["content"] for result in web_search_results]
+    documents = documents.extend(web_search_results)
+    return {"documents": documents, "question": question}
 
 
 def summarise_conversation(state: GraphState) -> GraphState:

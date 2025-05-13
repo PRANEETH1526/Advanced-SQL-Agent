@@ -27,7 +27,7 @@ structured_llm_answer_grader = llm.with_structured_output(GradeAnswer)
 # Prompt
 router_system = """You are an expert at routing a user question to a vectorstore or web search.
 The vectorstore contains documents that are relevant to specific company information such as workflows, processes, policies, products, etc.
-If the question can be answered using your general knowledge, use web-search."""
+prioritise using the vectorstore retriever to answer enterprise questions."""
 router_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", router_system),
@@ -92,7 +92,7 @@ answer_grader = answer_prompt | structured_llm_answer_grader
 question_rewriter = re_write_prompt | llm | StrOutputParser()
 
 rag_system = """
-    You are a helpful assistant that can answer questions based on the provided context."""
+    You are a helpful assistant that can answer questions based on the provided context. Reference the context to answer the question."""
 
 rag_prompt = ChatPromptTemplate.from_messages(
     [

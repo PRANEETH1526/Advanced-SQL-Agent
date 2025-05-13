@@ -74,27 +74,29 @@ contextualiser_prompt = ChatPromptTemplate.from_messages(
 )
 
 sufficient_tables_system = """ 
-You are a specialist at evaluating the sufficiency of information for generating SQL queries.
+You are a specialist in evaluating the sufficiency of context information for generating SQL queries.
 
 Task:
-You are given organized information about a user query, along with a list of schema details and table relationships selected by a Selector LLM. Your task is to determine if the currently selected tables and their fields are sufficient to generate an executable SQL query that answers the user’s question.
+Given a user's query and cached context from previously successful queries (including selected tables and fields), determine if the provided context is sufficient to generate an executable SQL query that accurately answers the user's current question.
 
-Instructions:
+Evaluation Criteria:
+Tables and Fields: Verify if the selected tables and fields, when properly joined based on existing relationships, fully address the user's query.
+Completeness: Confirm that all necessary fields required to answer the user's question are included.
+Relationships: Ensure relationships among tables (e.g., foreign keys) required for a successful join are explicitly available in the provided context.
 
-1. Sufficiency Evaluation:
-Use chain-of-thought reasoning to assess whether, by properly joining the selected tables, there is enough information to answer the query.
-If any critical information is missing (e.g., required fields, table relationships, or key attributes), you may mark the selection as insufficient.
-However, before concluding insufficiency, verify carefully that the required information is not already covered by the selected tables or their known relationships.
-If uncertain, default to "sufficient" to avoid overestimating missing elements.
+Decision Logic:
+If the current context explicitly covers all required tables, fields, and their relationships, mark as sufficient (True).
+If critical information is clearly missing (e.g., essential fields, missing table relationships), mark as insufficient (False) and explicitly state what's missing.
+In borderline cases or uncertainty, default to sufficient (True) to avoid unnecessary information retrieval.
 
-2. Output Format:
-Sufficient: Return True if the current selection is sufficient. Return False if it is not.
-Reason: If True, omit this field. If False, provide a clear explanation of what's missing. Only suggest tables or fields that are not already present in the selected list.
+Output Format:
+Sufficient: Return True if context is sufficient. Return False if insufficient.
+Reason: Omit if sufficient (True). If insufficient (False), concisely explain the missing information. Only suggest tables or fields not already present in the cached context.
 
-Additional Notes:
-Do not suggest a table or field that is already included in the selection.
-If the missing data is a field within an already selected table, suggest only the missing field(s), not the entire table.
-Reference the example SQL query (if provided) to guide your reasoning.
+Important Reminders:
+Do not suggest tables or fields already included in the context.
+If missing data involves a field from an already selected table, only suggest that specific missing field.
+Use the provided example SQL query (if available) as guidance to evaluate sufficiency accurately.
 """
 
 sufficient_tables_prompt = ChatPromptTemplate.from_messages(
@@ -113,7 +115,6 @@ You are provided with a user question, and structure information necessary for c
 Additionally, you may sometimes receive an error message indicating that the previously generated query failed upon execution. 
 
 Instructions:
-
 If you don't get an error message, use the information to generate an SQL query that is syntactically correct for the user question.
 
 Initial Query Generation:
