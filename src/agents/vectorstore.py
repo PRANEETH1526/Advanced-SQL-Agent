@@ -2,6 +2,8 @@ from agents.llm import embeddings as dense_embedder
 #from agents.llm import sparse_embeddings as sparse_embedder
 from typing import Dict, Any, List
 from pymilvus import MilvusClient, DataType, Collection, AnnSearchRequest, WeightedRanker, connections
+from langchain_text_splitters.character import RecursiveCharacterTextSplitter
+from eval.query_gen import generate_queries
 
 DATABASE_URI = "./intellidesign.db"
 COLLECTION_NAME = "sql_agent" # default collection name
@@ -77,6 +79,7 @@ def insert_data(collection: Collection, information: str):
         }
     ]
     collection.insert(data)
+    collection.flush()
     print(f"Inserted data into collection '{COLLECTION_NAME}'.")
 
 def delete_data(collection: Collection, doc_id: int):
@@ -87,6 +90,7 @@ def delete_data(collection: Collection, doc_id: int):
         doc_id (int): The document ID to delete.
     """
     collection.delete(f"id == {doc_id}")
+    collection.flush()
     print(f"Deleted document with ID {doc_id} from collection '{COLLECTION_NAME}'.")
 
 def dense_search(col: Collection, query: str, limit=10, expr=None) -> List[Dict]:
@@ -374,14 +378,51 @@ def search_vectorstore(
 
     return search_results
 
-if __name__ == "__main__":
-    # Example usage
-    collection = get_collection()
-    score = dense_search(
-            collection,
-            "Purchase order",
-            limit=1,
-        )[0].id
+def add_to_vectorstore(collection: Collection, data: List[Dict], generate_query: bool = False) -> List[Dict]:
+    """
+    Processes and embeds documents, and saves them to the Milvus vector store.
+    Args:
+        col (Collection): The Milvus collection to save the documents to.
+        data (List[Dict]): List of dictionaries containing document data.
+    Returns:
+        List[Dict]: List of dictionaries containing processed documents.
+    """
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=100,
+    )
 
-    print(score)
-        
+    all_documents = []
+    for item in data:
+        collection_name = item["collection"]
+        id = item["id"]
+        metadata = item["metadata"]
+
+        collection.delete(expr=f'doc_id== "{id}"')
+
+        chunks = splitter.split_text(item["text"])
+
+        documents = []
+        for chunk in chunks:
+            if not chunk:
+                continue
+            chunk = f"##{metadata.get('breadcrumb_title', item['title'])}\n{chunk}"
+            document = {
+                "doc_id": id,
+                "text": chunk,
+                "vector": dense_embedder.embed_query(chunk),
+                "sparse": sparse_embedder.encode_documents([chunk])["sparse"],
+                "source": collection_name,
+                "title": item["title"],
+                "url": item["url"],
+                **metadata
+            }
+            if generate_query:
+                generate_queries(id, chunk)
+            documents.append(document)
+        collection.insert(documents)
+        all_documents.extend(documents)
+        print(f"Added document {item['title']} to collection '{COLLECTION_NAME}' in Milvus.")
+    # Add documents to the collection
+    collection.flush()
+    return documents
