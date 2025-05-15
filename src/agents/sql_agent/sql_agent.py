@@ -351,7 +351,7 @@ def continue_sufficient_tables(state: State) -> State:
     messages = state["messages"]
     max_retries = state["max_retries"]
     sufficient_tables = state["sufficient_info"]
-    if not sufficient_tables or max_retries == 0:
+    if sufficient_tables or max_retries == 0:
         return "query_gen"
     else:
         return "selector"
