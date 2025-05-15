@@ -215,13 +215,11 @@ def contextualiser(state: State) -> State:
         context = doc.fields.get("text")
         information_id = doc.id
         information += context
-        response = AIMessage(content=f"Retrieving cached information from the database...\n\n{information}")
-    else:
-        if information:
-            messages.append(AIMessage(content=f"Fill in the gaps, retain all this information: {information}"))
-        prompt = contextualiser_prompt.format(messages=messages)
-        response = llm.invoke(prompt)
-        information = response.content
+    if information:
+        messages.append(AIMessage(content=f"Fill in the gaps in this information based on the original user query: {information}"))
+    prompt = contextualiser_prompt.format(messages=messages)
+    response = llm.invoke(prompt)
+    information = response.content
 
     return {"messages": [response], "information": information, "information_id": information_id, "retrieve_cache": True}
 
