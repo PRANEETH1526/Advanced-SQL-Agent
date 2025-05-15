@@ -31,7 +31,13 @@ from service.schema import (
     InformationUpdateInput,
     ContextRequest,
     ContextResponse,
-    StateHistoryResponse
+    StateHistoryResponse,
+    InsertContextInput,
+    InsertContextResponse,
+    RetrieveContextInput,
+    RetrieveContextResponse,
+    DeleteContextInput,
+    DeleteContextResponse,
 )
 from service.utils import (
     convert_message_content_to_string,
@@ -40,7 +46,7 @@ from service.utils import (
     stream_output
 )
 
-from agents.vectorstore import get_collection, insert_data, delete_data
+from agents.vectorstore import get_collection, insert_data, delete_data, insert_context, retrieve_context
 
 import asyncio
 
@@ -390,6 +396,55 @@ async def get_information(
     info = state.values.get("information")
     return ContextResponse(information=info)
 
+# insert context 
+@router.post("/insert_context", response_model=InsertContextResponse)
+async def insert_sql_context(
+    payload: InsertContextInput,
+) -> InsertContextResponse:
+    """
+    Insert context into the database.
+    """
+    collection = get_collection("./intellidesign.db", "sql_context")
+    if not collection:
+        raise HTTPException(status_code=500, detail="Collection not found")
+    id = insert_context(
+        collection,
+        payload.query,
+        payload.context,
+    )
+    return InsertContextResponse(id=id)
+
+@router.get("/retrieve_context", response_model=RetrieveContextResponse)
+async def retrieve_sql_context(
+    payload: RetrieveContextInput,
+) -> RetrieveContextResponse:
+    """
+    Retrieve context from the database.
+    """
+    collection = get_collection("./intellidesign.db", "sql_context")
+    if not collection:
+        raise HTTPException(status_code=500, detail="Collection not found")
+    id, query, context = retrieve_context(
+        collection,
+        payload.query,
+    )
+    return RetrieveContextResponse(context=context, query=query, id=id)
+
+@router.delete("/delete_context", response_model=InsertContextResponse)
+async def delete_sql_context(
+    payload: DeleteContextInput,
+) -> DeleteContextResponse:
+    """
+    Delete context from the database.
+    """
+    collection = get_collection("./intellidesign.db", "sql_context")
+    if not collection:
+        raise HTTPException(status_code=500, detail="Collection not found")
+    id = delete_data(
+        collection,
+        payload.id,
+    )
+    return DeleteContextResponse(id=id)
 
 @router.post("/{agent_id}/get_state_history", response_model=StateHistoryResponse)
 async def get_state_history(

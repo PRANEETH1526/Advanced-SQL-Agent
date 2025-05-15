@@ -108,9 +108,11 @@ def insert_context(collection: Collection, query: str, context: str):
             "vector": dense_embedder.embed_query(query),
         }
     ]
-    collection.insert(data)
+    res = collection.insert(data)
+    res_id = res.primary_keys[0]
     collection.flush()
     print(f"Inserted context into collection '{COLLECTION_NAME}'.")
+    return res_id
 
 def retrieve_context(collection: Collection, query: str):
     """
@@ -119,7 +121,7 @@ def retrieve_context(collection: Collection, query: str):
         collection (Collection): The Milvus collection.
         query (str): The query string.
     Returns:
-        List[Dict]: List of dictionaries containing the retrieved context.
+        Tuple: The ID of the retrieved context, the similar query, and the context itself.
     """
     search_params = {"metric_type": "IP", "params": {}}
     res = collection.search(
@@ -132,12 +134,7 @@ def retrieve_context(collection: Collection, query: str):
     id = res.id
     context = res.entity.get("context")
     query = res.entity.get("text")
-    result = {
-        "id": id,
-        "context": context,
-        "query": query
-    }
-    return result
+    return id, query, context
 
 def dense_search(col: Collection, query: str, limit=10, expr=None) -> List[Dict]:
     """

@@ -174,3 +174,50 @@ class StateHistoryResponse(BaseModel):
         description="List of states in the state history.",
         default=[],
     )
+
+class InsertContextInput(BaseModel):
+    """Input for inserting context to the database."""
+    query: str = Field(
+        description="Query to insert context with tags",
+    )
+    context: str = Field(
+        description="Context to insert",
+    )
+
+class InsertContextResponse(BaseModel):
+    """Response for inserting context."""
+    id: str = Field(
+        description="ID of the inserted context.",
+        examples=["847c6285-8fc9-4560-a83f-4e6285809254"],
+    )
+    status: Literal["success"] = "success"
+    
+class RetrieveContextInput(BaseModel):
+    """Input for retrieving context from the database."""
+    query: str = Field(
+        description="Query to retrieve context with tags",
+    )
+
+class RetrieveContextResponse(BaseModel):
+    """Response for retrieving context."""
+    context: str = Field(
+        description="Retrieved context.",
+    )
+    query: str = Field(
+        description="Similar query of the retrieve context.",
+    )
+    id : str = Field(
+        description="ID of the retrieved context.",
+    )
+
+class DeleteContextInput(BaseModel):
+    """Input for deleting context from the database."""
+    id: str = Field(
+        description="ID of the context to delete.",
+    )
+
+class DeleteContextResponse(BaseModel):
+    """Response for deleting context."""
+    id: str = Field(
+        description="ID of the deleted context.",
+    )
