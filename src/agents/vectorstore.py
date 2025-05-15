@@ -127,7 +127,7 @@ def retrieve_context(collection: Collection, query: str):
         anns_field="vector",
         limit=5,
         param=search_params,
-        output_fields=["context"]
+        output_fields=["text", "context"]
     )[0][0]
     id = res.id
     context = res.entity.get("context")
