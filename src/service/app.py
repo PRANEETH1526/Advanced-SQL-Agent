@@ -430,7 +430,7 @@ async def retrieve_sql_context(
     )
     return RetrieveContextResponse(context=context, query=query, id=id)
 
-@router.delete("/delete_context", response_model=InsertContextResponse)
+@router.delete("/delete_context", response_model=DeleteContextResponse)
 async def delete_sql_context(
     payload: DeleteContextInput,
 ) -> DeleteContextResponse:
@@ -440,11 +440,11 @@ async def delete_sql_context(
     collection = get_collection("./intellidesign.db", "sql_context")
     if not collection:
         raise HTTPException(status_code=500, detail="Collection not found")
-    id = delete_data(
+    delete_data(
         collection,
         payload.id,
     )
-    return DeleteContextResponse(id=id)
+    return DeleteContextResponse(id=payload.id)
 
 @router.post("/{agent_id}/get_state_history", response_model=StateHistoryResponse)
 async def get_state_history(
