@@ -211,13 +211,13 @@ class RetrieveContextResponse(BaseModel):
 
 class DeleteContextInput(BaseModel):
     """Input for deleting context from the database."""
-    id: str = Field(
+    id: int = Field(
         description="ID of the context to delete.",
     )
 
 class DeleteContextResponse(BaseModel):
     """Response for deleting context."""
-    id: str = Field(
+    id: int = Field(
         description="ID of the deleted context.",
     )
     status: Literal["success"] = "success"
