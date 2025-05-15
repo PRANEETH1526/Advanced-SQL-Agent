@@ -37,6 +37,7 @@ from service.utils import (
     convert_message_content_to_string,
     langchain_to_chat_message,
     remove_tool_calls,
+    stream_output
 )
 
 from agents.vectorstore import get_collection, insert_data, delete_data
@@ -306,50 +307,33 @@ async def update_information(
     config = {"configurable": {"thread_id": payload.thread_id}}
     loop = asyncio.get_event_loop()
     # offload the sync call to a threadpool
-    history = await loop.run_in_executor(
-        None,                          # default threadpool
-        lambda: list(agent.get_state_history(config)),
-    )
+    try:
+        history = await loop.run_in_executor(
+            None,                          # default threadpool
+            lambda: list(agent.get_state_history(config)),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get state history: {e}",
+        )
     fork_cfg = next(
     (h.config for h in history 
-     if h.next and h.next[0] == "query_gen"),
+     if h.next and h.next[0] == "sufficient_tables"),
         None
     )
     
     try:
         new_cfg = await agent.aupdate_state(fork_cfg, {"information": payload.information})
+        thread_id = new_cfg.get("configurable", {}).get("thread_id")
+        run_id = new_cfg.get("run_id")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fork/update state: {e}",
         )
 
-    async def _stream():
-        async for ev in agent.astream(None, new_cfg, stream_mode=["updates", "messages", "custom"]):
-            if not isinstance(ev, tuple):
-                continue
-            mode, body = ev
-            msgs = []
-            if mode == "updates":
-                for _, ups in body.items():
-                    msgs.extend(ups.get("messages", []))
-            elif mode == "custom":
-                msgs.append(body)
-            elif mode == "messages":
-                msg, _ = body
-                if isinstance(msg, AIMessageChunk):
-                    msgs.append(msg)
-
-            for m in msgs:
-                try:
-                    cm = langchain_to_chat_message(m)
-                except:
-                    continue
-                yield f"data: {json.dumps({'type':'message','content':cm.model_dump()})}\n\n"
-
-        yield "data: [DONE]\n\n"
-
-    return StreamingResponse(_stream(), media_type="text/event-stream")
+    return StreamingResponse(stream_output(agent, None, new_cfg, run_id, thread_id), media_type="text/event-stream")
 
 
 @router.post("/{agent_id}/save_information", response_model=ContextResponse)

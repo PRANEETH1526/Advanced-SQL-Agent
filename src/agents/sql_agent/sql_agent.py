@@ -149,7 +149,7 @@ def info_sql_database_tool() -> str:
     Get the information about the tables in the database
     """
     result = db.run_no_throw(
-        "SELECT TABLE_NAME, TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'cms';"
+        "SELECT TABLE_NAME, TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'cms' AND LENGTH(TABLE_COMMENT) > 100;"
     )
     full_response = f"Tables and Descriptions:\n\n{result}"
     return full_response
@@ -232,11 +232,11 @@ def sufficient_tables(state: State) -> State:
     # add timestamp to the prompt
     response = sufficient_tables_llm.invoke(f"Timestamp: {datetime.now()}\n\n{prompt}")
     full_response = (
-        f"Sufficient Tables: {response.decision}\n\nReason: {response.reason}"
+        f"Sufficient Tables: {response.sufficiency_decision}\n\nReason: {response.reason}"
     )
     return {
         "messages": [AIMessage(content=full_response)],
-        "sufficient_info": response.decision,
+        "sufficient_info": response.sufficiency_decision,
     }
 
 
@@ -351,8 +351,8 @@ def query_router(state: State) -> State:
 def continue_sufficient_tables(state: State) -> State:
     messages = state["messages"]
     max_retries = state["max_retries"]
-    last_message = messages[-1]
-    if last_message.content.startswith("Sufficient Tables: True") or max_retries == 0:
+    sufficient_tables = state["sufficient_info"]
+    if not sufficient_tables or max_retries == 0:
         return "query_gen"
     else:
         return "selector"

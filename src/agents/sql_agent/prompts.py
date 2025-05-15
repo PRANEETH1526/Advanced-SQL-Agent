@@ -5,7 +5,6 @@ from agents.sql_agent.structured_outputs import TransformUserQuestion, Sufficien
 transform_user_question_system = """
 
 You will receive a user question and your job is to make the question more specific and clear.
-Try to make the question as simple as possible.
 
 """
 

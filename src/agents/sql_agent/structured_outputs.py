@@ -22,7 +22,7 @@ class Query(BaseModel):
     reasoning: str = Field(description="The reasoning for the query")
 
 class SufficientTables(BaseModel):
-    decision: bool = Field(
+    sufficiency_decision: bool = Field(
         description="True if the provided information is sufficient for the query, False otherwise"
     )
     reason: str = Field(description="The reasoning for the answer")
