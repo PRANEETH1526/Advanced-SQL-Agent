@@ -199,13 +199,13 @@ class RetrieveContextInput(BaseModel):
 
 class RetrieveContextResponse(BaseModel):
     """Response for retrieving context."""
-    context: str = Field(
+    context: str | None = Field(
         description="Retrieved context.",
     )
-    query: str = Field(
+    query: str | None = Field(
         description="Similar query of the retrieve context.",
     )
-    id : int = Field(
+    id : int | None = Field(
         description="ID of the retrieved context.",
     )
 
