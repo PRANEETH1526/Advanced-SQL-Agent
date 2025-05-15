@@ -186,9 +186,8 @@ class InsertContextInput(BaseModel):
 
 class InsertContextResponse(BaseModel):
     """Response for inserting context."""
-    id: str = Field(
+    id: int = Field(
         description="ID of the inserted context.",
-        examples=["847c6285-8fc9-4560-a83f-4e6285809254"],
     )
     status: Literal["success"] = "success"
     
@@ -206,7 +205,7 @@ class RetrieveContextResponse(BaseModel):
     query: str = Field(
         description="Similar query of the retrieve context.",
     )
-    id : str = Field(
+    id : int = Field(
         description="ID of the retrieved context.",
     )
 
@@ -221,3 +220,4 @@ class DeleteContextResponse(BaseModel):
     id: str = Field(
         description="ID of the deleted context.",
     )
+    status: Literal["success"] = "success"
