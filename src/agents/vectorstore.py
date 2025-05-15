@@ -6,7 +6,7 @@ from langchain_text_splitters.character import RecursiveCharacterTextSplitter
 from eval.query_gen import generate_queries
 
 DATABASE_URI = "./intellidesign.db"
-COLLECTION_NAME = "sql_agent" # default collection name
+COLLECTION_NAME = "sql_context" # default collection name
 
 import nltk
 from nltk.corpus import stopwords
@@ -92,6 +92,52 @@ def delete_data(collection: Collection, doc_id: int):
     collection.delete(f"id == {doc_id}")
     collection.flush()
     print(f"Deleted document with ID {doc_id} from collection '{COLLECTION_NAME}'.")
+
+def insert_context(collection: Collection, query: str, context: str):
+    """
+    Insert context into the Milvus collection.
+    Args:
+        collection (Collection): The Milvus collection.
+        query (str): The query string.
+        context (str): The context string.
+    """
+    data = [
+        {
+            "text": query,
+            "context": context,
+            "vector": dense_embedder.embed_query(query),
+        }
+    ]
+    collection.insert(data)
+    collection.flush()
+    print(f"Inserted context into collection '{COLLECTION_NAME}'.")
+
+def retrieve_context(collection: Collection, query: str):
+    """
+    Retrieve context from the Milvus collection based on the query.
+    Args:
+        collection (Collection): The Milvus collection.
+        query (str): The query string.
+    Returns:
+        List[Dict]: List of dictionaries containing the retrieved context.
+    """
+    search_params = {"metric_type": "IP", "params": {}}
+    res = collection.search(
+        [dense_embedder.embed_query(query)],
+        anns_field="vector",
+        limit=5,
+        param=search_params,
+        output_fields=["context"]
+    )[0][0]
+    id = res.id
+    context = res.entity.get("context")
+    query = res.entity.get("text")
+    result = {
+        "id": id,
+        "context": context,
+        "query": query
+    }
+    return result
 
 def dense_search(col: Collection, query: str, limit=10, expr=None) -> List[Dict]:
     """
@@ -426,3 +472,12 @@ def add_to_vectorstore(collection: Collection, data: List[Dict], generate_query:
     # Add documents to the collection
     collection.flush()
     return documents
+
+if __name__ == "__main__":
+    collection_get_collection = get_collection()
+    query = "Example query \n\n Tags: [tag1, tag2]"
+    context = "Example context"
+    insert_context(collection_get_collection, query, context)
+    result = retrieve_context(collection_get_collection, query)
+    print(result)
+
