@@ -10,7 +10,7 @@ from langchain_core.tools import tool
 from langgraph.constants import Send
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import AnyMessage, add_messages
-from langgraph.prebuilt import ToolNode
+from langgraph.prebuilt import ToolNode, create_react_agent
 from agents.llm import llm, mini_llm
 from agents.vectorstore import get_collection, insert_data, dense_search
 from agents.sql_agent.prompts import (
@@ -166,6 +166,8 @@ def get_schema_tool(table_name: str) -> str:
     result = re.sub(pattern, "", result)
     result = f"Selected Table {table_name}\n\nSchema: {result}"
     return result
+
+react_agent = create_react_agent(llm, tools=[list_tables_tool, get_schema_tool])
 
 def transform_user_question(state: State) -> State:
     prompt = transform_user_question_prompt.format(messages=state["messages"])
@@ -338,15 +340,14 @@ def query_router(state: State) -> State:
 
     Maps to contextualiser if the query is complex and needs to be broken down.
     """
-    user_question = HumanMessage(content=state["question"])
+    user_question = state["messages"][0]
     messages = [user_question]
     prompt = query_router_prompt.format(messages=messages)
     response = query_router_llm.invoke(prompt)
-    if response.simple:
-        return "query_gen"
-    else:
-        return "contextualiser"
-
+    if response.classification == "SQLRequest":
+        return "transform_user_question"
+    elif response.classification == "GeneralQuestion":
+        return "react_agent"
 
 def continue_sufficient_tables(state: State) -> State:
     messages = state["messages"]
@@ -384,6 +385,7 @@ def continue_query_gen(state: State) -> State:
 
 # Build the workflow
 workflow = StateGraph(State)
+workflow.add_node("react_agent", react_agent)
 workflow.add_node("transform_user_question", transform_user_question)
 workflow.add_node("info_sql_database_tool_call", info_sql_database_tool_call)
 workflow.add_node(
@@ -400,7 +402,14 @@ workflow.add_node("get_query_execution", get_query_execution)
 workflow.add_node("query_execute", create_tool_node_with_fallback([db_query_tool]))
 workflow.add_node("final_answer", final_answer)
 
-workflow.add_edge(START, "transform_user_question")
+workflow.add_conditional_edges(
+    START,
+    query_router,
+    {
+      "react_agent": "react_agent",
+      "transform_user_question": "transform_user_question",
+    },
+)
 workflow.add_edge("transform_user_question", "info_sql_database_tool_call")
 workflow.add_edge("info_sql_database_tool_call", "info_sql_database_tool")
 workflow.add_edge("info_sql_database_tool", "tables_selector")

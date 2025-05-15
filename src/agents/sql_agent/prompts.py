@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 from agents.llm import llm, mini_llm
-from agents.sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks, SimpleQuery
+from agents.sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks, QueryClassification
 
 transform_user_question_system = """
 
@@ -213,15 +213,25 @@ answer_and_reasoning_prompt = ChatPromptTemplate.from_messages(
 )
 
 query_router_system = """
-Your job is to determine if the user question is simple and doesn't require any breakdown or if there is enough information already to answer the user question
+You are an intelligent assistant that classifies user queries into two categories to decide the correct next step:
 
-If upon reflection you believe that the user question is simple (i.e. only one table is needed to answer the question, no joins are needed, etc.)
-return "True".
-If you believe that the user question is complex (i.e. multiple tables are needed, joins required), return "False".
-If you are unsure, return "False".
+1. **GeneralQuestion**  
+   - Use this if the query is a broad question about the database structure, table purposes, column descriptions, or schema-level understanding.  
+   - **Examples:**
+     - "What tables are available?"
+     - "What does the `inventory` table track?"
+     - "Explain the schema."
 
-Simple query example: Get the number of entries in the components table
-Complex query example: Get the number of components broken down by category, with percentage (components table joined with categories table)
+2. **SQLRequest**  
+   - Use this if the query asks for specific data that requires generating and running an SQL query to extract results from the database.  
+   - **Examples:**
+     - "List all parts with low stock"
+     - "Show recent purchase orders"
+     - "What's the quantity of item 123 in stock?"
+
+
+Classify the following user query strictly as either `"GeneralQuestion"` or `"SQLRequest"`.
+Return **only** the classification label.
 """
 
 query_router_prompt = ChatPromptTemplate.from_messages(
@@ -231,4 +241,4 @@ query_router_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-query_router_llm = llm.with_structured_output(SimpleQuery)
+query_router_llm = llm.with_structured_output(QueryClassification)

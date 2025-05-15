@@ -1,7 +1,7 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "agent": "./src/agents/adaptive_rag_agent/adaptive_rag_agent.py:adaptive_rag_agent"
+    "agent": "./src/agents/sql_agent/sql_agent.py:sql_agent"
   },
   "env": ".env"
 }

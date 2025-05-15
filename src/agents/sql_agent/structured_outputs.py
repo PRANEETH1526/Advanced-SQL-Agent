@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing_extensions import Literal
 
 class Subtasks(BaseModel):
     subtasks: list[str] = Field(
@@ -30,5 +31,7 @@ class SufficientTables(BaseModel):
 class TransformUserQuestion(BaseModel):
     question: str = Field(description="The transformed user question")
 
-class SimpleQuery(BaseModel):
-    simple: bool = Field(description="Whether the query is simple or not")
+class QueryClassification(BaseModel):
+    classification: Literal["GeneralQuestion", "SQLRequest"] = Field(
+        description="The classification of the user question"
+    )
