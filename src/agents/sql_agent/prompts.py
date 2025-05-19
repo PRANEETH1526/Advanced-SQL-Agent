@@ -244,9 +244,28 @@ query_router_prompt = ChatPromptTemplate.from_messages(
 query_router_llm = llm.with_structured_output(QueryClassification)
 
 relevant_questions_selector_system = """
-You are an intelligent assistant that takes a user question and a list of relevant questions and selects relevant questions that are similar to the user question.
-Output the selected relevant questions in a list.
-If you don't find any relevant questions, return an empty list.
+You are an LLM-powered RERANKER.
+
+## Inputs
+- **user_question**: A single natural-language query from the user.
+- **candidate_questions**: A list of previously-asked questions (strings) along with their IDs that may or may not be relevant.
+
+## Task
+For each candidate question, judge its semantic similarity to **user_question** and decide whether it is *meaningfully related* (i.e. likely to help answer or clarify the user’s need).  
+Discard every candidate that is clearly irrelevant.
+
+### Scoring rules
+1. Give each candidate an integer relevance **score** from **0-100**:
+   - **90-100** Essentially the *same* question or a direct paraphrase.  
+   - **70-89** Strongly related (covers the same topic or would meaningfully help).  
+   - **40-69** Loosely related (touches on the topic but only marginally useful).  
+   - **0-39** Irrelevant (different topic, context, or intent).
+
+2. **Keep only candidates with a score ≥ 70.**  
+   Everything below 70 is considered insufficiently relevant and must be dropped.
+
+## Output
+Return a list of the reranked candidate question IDs sorted by descending score — or an empty list (`[]`) if none meet the threshold.  
 """
 relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
     [

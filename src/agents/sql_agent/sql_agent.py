@@ -220,7 +220,7 @@ def contextualiser(state: State) -> State:
             context = doc["context"]
             relevant_questions.append(f"ID {id}: {query}")
             id_to_context[id] = context 
-        prompt_input = [HumanMessage(f"Question: {user_question}\n\nRetrieved Questions:\n" + "\n".join(relevant_questions))]
+        prompt_input = [HumanMessage(f"User Question: {user_question}\n\nCandidate Questions:\n" + "\n".join(relevant_questions))]
         question_selection = relevant_questions_selector_prompt.format(messages=prompt_input)
         response = relevant_questions_selector_llm.invoke(question_selection) 
         for id in response.selected_ids:
