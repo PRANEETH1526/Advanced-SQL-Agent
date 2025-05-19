@@ -140,6 +140,40 @@ def retrieve_context(collection: Collection, query: str):
     query = res.entity.get("text")
     return id, query, context
 
+def retrieve_contexts(collection: Collection, query: str, limit=5):
+    """
+    Retrieve contexts from the Milvus collection based on the query.
+    Args:
+        collection (Collection): The Milvus collection.
+        query (str): The query string.
+        limit (int): The number of results to return.
+    Returns:
+        List[Dict]: List of dictionaries containing the retrieved contexts.
+    """
+    search_params = {"metric_type": "IP", "params": {}}
+    res = collection.search(
+        [dense_embedder.embed_query(query)],
+        anns_field="vector",
+        limit=limit,
+        param=search_params,
+        output_fields=["text", "context"]
+    )[0]
+    if res is None or len(res) == 0:
+        print("No results found.")
+        return []
+    results = []
+    for item in res:
+        context = item.entity.get("context")
+        query = item.entity.get("text")
+        results.append({
+            "id": item.id,
+            "context": context,
+            "query": query,
+            "score": item.distance
+        })
+    return results
+
+
 def dense_search(col: Collection, query: str, limit=10, expr=None) -> List[Dict]:
     """
     Perform a dense search in the Milvus collection.

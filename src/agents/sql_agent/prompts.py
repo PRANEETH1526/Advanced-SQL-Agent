@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 from agents.llm import llm, mini_llm
-from agents.sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks, QueryClassification
+from agents.sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks, QueryClassification, SelectedQueries
 
 transform_user_question_system = """
 
@@ -242,3 +242,17 @@ query_router_prompt = ChatPromptTemplate.from_messages(
 )
 
 query_router_llm = llm.with_structured_output(QueryClassification)
+
+relevant_questions_selector_system = """
+You are an intelligent assistant that takes a user question and a list of relevant questions and selects relevant questions that are similar to the user question.
+Output the selected relevant questions in a list.
+If you don't find any relevant questions, return an empty list.
+"""
+relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", relevant_questions_selector_system),
+        ("placeholder", "{messages}"),
+    ]
+)
+
+relevant_questions_selector_llm = llm.with_structured_output(SelectedQueries)

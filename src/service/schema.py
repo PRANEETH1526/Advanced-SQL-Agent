@@ -199,14 +199,8 @@ class RetrieveContextInput(BaseModel):
 
 class RetrieveContextResponse(BaseModel):
     """Response for retrieving context."""
-    context: str | None = Field(
-        description="Retrieved context.",
-    )
-    query: str | None = Field(
-        description="Similar query of the retrieve context.",
-    )
-    id : int | None = Field(
-        description="ID of the retrieved context.",
+    context: dict[str, Any] = Field(
+        description="Context retrieved from the database.",
     )
 
 class DeleteContextInput(BaseModel):

@@ -46,7 +46,7 @@ from service.utils import (
     stream_output
 )
 
-from agents.vectorstore import get_collection, insert_data, delete_data, insert_context, retrieve_context
+from agents.vectorstore import get_collection, insert_data, delete_data, insert_context, retrieve_contexts
 
 import asyncio
 
@@ -424,11 +424,11 @@ async def retrieve_sql_context(
     collection = get_collection("./intellidesign.db", "sql_context")
     if not collection:
         raise HTTPException(status_code=500, detail="Collection not found")
-    id, query, context = retrieve_context(
+    context = retrieve_contexts(
         collection,
         payload.query,
     )
-    return RetrieveContextResponse(context=context, query=query, id=id)
+    return RetrieveContextResponse(context=context)
 
 @router.delete("/delete_context", response_model=DeleteContextResponse)
 async def delete_sql_context(

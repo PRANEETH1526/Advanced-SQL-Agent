@@ -35,3 +35,8 @@ class QueryClassification(BaseModel):
     classification: Literal["GeneralQuestion", "SQLRequest"] = Field(
         description="The classification of the user question"
     )
+
+class SelectedQueries(BaseModel):
+    selected_ids: list[int] = Field(
+        description="The list of ids of the selected relevant queries"
+    )

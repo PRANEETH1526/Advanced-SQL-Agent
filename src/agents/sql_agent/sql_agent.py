@@ -12,7 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.prebuilt import ToolNode, create_react_agent
 from agents.llm import llm, mini_llm
-from agents.vectorstore import get_collection, insert_data, dense_search
+from agents.vectorstore import get_collection, insert_data, dense_search, retrieve_contexts
 from agents.sql_agent.prompts import (
     transform_user_question_prompt,
     transform_user_question_llm,
@@ -28,7 +28,9 @@ from agents.sql_agent.prompts import (
     reducer_llm,
     answer_and_reasoning_prompt,
     query_router_prompt,
-    query_router_llm
+    query_router_llm,
+    relevant_questions_selector_prompt,
+    relevant_questions_selector_llm,
 )
 
 from datetime import datetime
@@ -40,7 +42,7 @@ def download_db():
     return db
 
 db = download_db()
-collection = get_collection(database_uri="intellidesign.db", collection_name="sql_agent")
+collection = get_collection(database_uri="intellidesign.db", collection_name="sql_context")
 
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 
@@ -57,7 +59,6 @@ class State(TypedDict):
     retrieve_cache: bool
     sufficient_info: bool
     information: str
-    information_id: str
     query_tasks: list[str]
     sql_queries: Annotated[list, operator.add]
     query: str
@@ -204,24 +205,34 @@ def contextualiser(state: State) -> State:
     ]
     messages = [user_question] + db_info
     get_cache = state.get("retrieve_cache", False)
-    information = information = state.get("information", "")
-    information_id = ""
+    information = state.get("information", "")
     if not get_cache:
-        doc = dense_search(
+        context = retrieve_contexts(
             collection,
             state["question"],
-            limit=1,
-        )[0]
-        context = doc.fields.get("text")
-        information_id = doc.id
-        information += context
+            limit=3,
+        )
+        relevant_questions = []
+        id_to_context = {}
+        for doc in context:
+            id = doc["id"]
+            query = doc["query"]
+            context = doc["context"]
+            relevant_questions.append(f"ID {id}: {query}")
+            id_to_context[id] = context 
+        prompt_input = [HumanMessage(f"Question: {user_question}\n\nRetrieved Questions:\n" + "\n".join(relevant_questions))]
+        relevant_questions_selector_prompt = relevant_questions_selector_prompt.format(messages=prompt_input)
+        response = relevant_questions_selector_llm.invoke(relevant_questions_selector_prompt) 
+        for id in response.selected_ids:
+            doc = context[id]
+            information += f"{doc['query']}\n\n"
     if information:
-        messages.append(AIMessage(content=f"Fill in the gaps in this information based on the original user query: {information}"))
+        messages.append(AIMessage(content=f"Fill in the gaps in this information: {information}"))
     prompt = contextualiser_prompt.format(messages=messages)
     response = llm.invoke(prompt)
     information = response.content
 
-    return {"messages": [response], "information": information, "information_id": information_id, "retrieve_cache": True}
+    return {"messages": [response], "information": information, "retrieve_cache": True}
 
 
 def sufficient_tables(state: State) -> State:
@@ -351,7 +362,7 @@ def continue_sufficient_tables(state: State) -> State:
     messages = state["messages"]
     max_retries = state["max_retries"]
     sufficient_tables = state["sufficient_info"]
-    if sufficient_tables or max_retries == 0:
+    if not sufficient_tables or max_retries == 0:
         return "query_gen"
     else:
         return "selector"
