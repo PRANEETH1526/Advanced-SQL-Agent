@@ -251,7 +251,7 @@ You are an LLM-powered RERANKER.
 - **candidate_questions**: A list of previously-asked questions (strings) along with their IDs that may or may not be relevant.
 
 ## Task
-For each candidate question, judge its semantic similarity to **user_question** and decide whether it is *meaningfully related* (i.e. likely to help answer or clarify the user’s need).  
+For each candidate question, judge its semantic similarity to **user_question** and decide whether it is *meaningfully related* (i.e. likely to help answer or clarify the user's need).  
 Discard every candidate that is clearly irrelevant.
 
 ### Scoring rules

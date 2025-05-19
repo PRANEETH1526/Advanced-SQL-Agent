@@ -227,7 +227,7 @@ def contextualiser(state: State) -> State:
             doc = id_to_context[id]
             information += f"{doc}\n\n"
     if information:
-        messages.append(AIMessage(content=f"Fill in the gaps in this information: {information}"))
+        messages.append(AIMessage(content=f"The following is information from semantically similar queries. Use this as context: {information}"))
     prompt = contextualiser_prompt.format(messages=messages)
     response = llm.invoke(prompt)
     information = response.content
