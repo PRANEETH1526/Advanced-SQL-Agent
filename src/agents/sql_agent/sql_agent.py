@@ -224,8 +224,8 @@ def contextualiser(state: State) -> State:
         question_selection = relevant_questions_selector_prompt.format(messages=prompt_input)
         response = relevant_questions_selector_llm.invoke(question_selection) 
         for id in response.selected_ids:
-            doc = context[id]
-            information += f"{doc['query']}\n\n"
+            doc = id_to_context[id]
+            information += f"{doc}\n\n"
     if information:
         messages.append(AIMessage(content=f"Fill in the gaps in this information: {information}"))
     prompt = contextualiser_prompt.format(messages=messages)
