@@ -221,8 +221,8 @@ def contextualiser(state: State) -> State:
             relevant_questions.append(f"ID {id}: {query}")
             id_to_context[id] = context 
         prompt_input = [HumanMessage(f"Question: {user_question}\n\nRetrieved Questions:\n" + "\n".join(relevant_questions))]
-        relevant_questions_selector_prompt = relevant_questions_selector_prompt.format(messages=prompt_input)
-        response = relevant_questions_selector_llm.invoke(relevant_questions_selector_prompt) 
+        question_selection = relevant_questions_selector_prompt.format(messages=prompt_input)
+        response = relevant_questions_selector_llm.invoke(question_selection) 
         for id in response.selected_ids:
             doc = context[id]
             information += f"{doc['query']}\n\n"
@@ -362,7 +362,7 @@ def continue_sufficient_tables(state: State) -> State:
     messages = state["messages"]
     max_retries = state["max_retries"]
     sufficient_tables = state["sufficient_info"]
-    if not sufficient_tables or max_retries == 0:
+    if sufficient_tables or max_retries == 0:
         return "query_gen"
     else:
         return "selector"
