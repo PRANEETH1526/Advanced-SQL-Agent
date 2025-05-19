@@ -56,7 +56,7 @@ You will receive the following information:
 - A user question
 - A list of all tables and their descriptions in the database 
 - A list of selected relevant tables and their schemas. The schemas have a comment section that describes the table and the relationship with other tables.
-- Context from semantically similar questions that have been asked in the past. This context may include the user question, the selected tables, or the generated SQL queries.
+- Context from semantically similar questions that have been asked in the past. Always include this context in your output.
 
 Task: Organise the information from the selected tables and their schemas into a structured format and to eliminate fields in the schemas that are not relevant to the user question.
 When in doubt, keep the field. Retain the COMMENT section of the schema including all the joins information which is crucial. Use the context from the semantically similar questions to help you.
@@ -68,7 +68,7 @@ Output Format:
 - Tables: <A brief description of the table and the COMMENT section of the schema if there is one>
 - Key Relationships: <A list of key relationships between the tables including the join conditions>
 - Relevant Fields for the User Question: <A list of relevant fields for the user question including the type of the field>
-- Example SQL Query: <An example SQL query that could be generated from the information provided. This is optional and may not be available in all cases.>
+- Context: <The context from the semantically similar questions that have been asked in the past. This context may include the user question, the selected tables, or the generated SQL queries.>
 """
 
 contextualiser_prompt = ChatPromptTemplate.from_messages(
