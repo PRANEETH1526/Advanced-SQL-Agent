@@ -261,11 +261,8 @@ Discard every candidate that is clearly irrelevant.
    - **40-69** Loosely related (touches on the topic but only marginally useful).  
    - **0-39** Irrelevant (different topic, context, or intent).
 
-2. **Keep only candidates with a score ≥ 70.**  
-   Everything below 70 is considered insufficiently relevant and must be dropped.
-
 ## Output
-Return a list of the reranked candidate question IDs sorted by descending score — or an empty list (`[]`) if none meet the threshold.  
+Return a list of the reranked candidate question IDs sorted by descending score — or an empty list (`[]`) 
 """
 relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
     [
