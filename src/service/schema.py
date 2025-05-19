@@ -199,7 +199,7 @@ class RetrieveContextInput(BaseModel):
 
 class RetrieveContextResponse(BaseModel):
     """Response for retrieving context."""
-    context: dict[str, Any] = Field(
+    context: list[dict] = Field(
         description="Context retrieved from the database.",
     )
 
