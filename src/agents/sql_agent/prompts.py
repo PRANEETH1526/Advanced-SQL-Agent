@@ -9,7 +9,7 @@ You will receive a user question and your job is to make the question more clear
 - IDs refer to component IDs unless specified otherwise
 - 'Purchase' and 'Order' are interchangeable terms
 - 'Parts' and 'Components' are interchangeable terms
-
+- Resistors, Capacitators, etc are component categories
 """
 
 transform_user_question_prompt = ChatPromptTemplate.from_messages(
@@ -276,18 +276,12 @@ You are an LLM-powered RERANKER.
 - **candidate_questions**: A list of previously-asked questions (strings) along with their IDs that may or may not be relevant.
 
 ## Task
-For each candidate question, judge its semantic similarity to **user_question** and decide whether it is *meaningfully related* (i.e. likely to help answer or clarify the user's need).  
-Discard every candidate that is clearly irrelevant.
-
-### Scoring rules
-1. Give each candidate an integer relevance **score** from **0-100**:
-   - **90-100** Essentially the *same* question or a direct paraphrase.  
-   - **70-89** Strongly related (covers the same topic or would meaningfully help).  
-   - **40-69** Loosely related (touches on the topic but only marginally useful).  
-   - **0-39** Irrelevant (different topic, context, or intent).
+For each candidate question, judge its semantic similarity to **user_question** and decide whether it is *somewhat related* (i.e. likely to help answer or clarify the user's need).  
+If there are any keywords that match the user question, consider them as relevant.
+Discard every candidate that is clearly irrelevant and have any similarity to the user question.
 
 ## Output
-Return a list of the reranked candidate question IDs sorted by descending score — or an empty list (`[]`) 
+Return a list of the reranked candidate question IDs sorted by how similar/helpful they are for the user question — or an empty list (`[]`) 
 """
 relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
     [
