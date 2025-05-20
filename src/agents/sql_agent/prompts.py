@@ -4,7 +4,7 @@ from agents.sql_agent.structured_outputs import TransformUserQuestion, Sufficien
 
 transform_user_question_system = """
 
-You will receive a user question and your job is to make the question more specific and clear. Here is some context to help you:
+You will receive a user question and your job is to make the question more clear. Don't add more to the question. Here is some context to help you:
 - POs are Purchase Orders
 - IDs refer to component IDs unless specified otherwise
 - 'Purchase' and 'Order' are interchangeable terms
