@@ -145,6 +145,25 @@ query_gen_prompt = ChatPromptTemplate.from_messages(
 
 query_gen_llm = llm.with_structured_output(Query)
 
+query_gen_with_context_system = """
+You are an expert SQL developer.
+
+You are provided with a user question, and an SQL queries of semantically similar questions that have been asked in the past.
+
+Your job is to analyze and use the provided SQL queries and generate a new MariaDB SQL query that can specifically answer the user question.
+
+Output Format: Return a single SQL statement. Do not hallucinate any field names or table names.
+"""
+
+query_gen_with_context_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", query_gen_with_context_system),
+        ("placeholder", "{messages}"),
+    ]
+)
+
+query_gen_with_context_llm = llm.with_structured_output(Query)
+
 decomposer_system = """
 You are an expert SQL developer.
 

@@ -24,6 +24,8 @@ from agents.sql_agent.prompts import (
     decomposer_llm, 
     query_gen_prompt,
     query_gen_llm,
+    query_gen_with_context_prompt,
+    query_gen_with_context_llm,
     reducer_prompt,
     reducer_llm,
     answer_and_reasoning_prompt,
@@ -55,12 +57,9 @@ get_schema_tool = next(tool for tool in tools if tool.name == "sql_db_schema")
 class State(TypedDict):
     question: str
     messages: Annotated[list[AnyMessage], add_messages]
-    all_tables: str
-    retrieve_cache: bool
+    context: str
     sufficient_info: bool
     information: str
-    query_tasks: list[str]
-    sql_queries: Annotated[list, operator.add]
     query: str
     max_retries: int = 1
     answer: str
@@ -179,6 +178,30 @@ def transform_user_question(state: State) -> State:
         "max_retries": 1
     }
 
+def get_context(state: State) -> State:
+    user_question = HumanMessage(content=state["question"])
+    context = retrieve_contexts(
+            collection,
+            state["question"],
+            limit=3,
+        )
+    relevant_questions = []
+    id_to_context = {}
+    for doc in context:
+        id = doc["id"]
+        query = doc["query"]
+        context = doc["context"]
+        relevant_questions.append(f"ID {id}: {query}")
+        id_to_context[id] = context 
+    prompt_input = [HumanMessage(f"User Question: {user_question}\n\nCandidate Questions:\n" + "\n".join(relevant_questions))]
+    question_selection = relevant_questions_selector_prompt.format(messages=prompt_input)
+    response = relevant_questions_selector_llm.invoke(question_selection) 
+    information = ""
+    for id in response.selected_ids:
+        doc = id_to_context[id]
+        information += f"{doc}\n\n" 
+    return {"information": information, "messages": [AIMessage(content=f"Retrieved Context: {context}")]}
+
 def selector(state: State) -> State:
     user_question = HumanMessage(content=state["question"])
     messages = [user_question]
@@ -193,7 +216,6 @@ def selector(state: State) -> State:
     response = model_get_schema.invoke(prompt)
     return {"messages": [response], "max_retries": max_retries}
 
-
 def contextualiser(state: State) -> State:
     user_question = HumanMessage(content=state["question"])
     unique_tool_calls = set([
@@ -204,35 +226,11 @@ def contextualiser(state: State) -> State:
         for message in unique_tool_calls
     ]
     messages = [user_question] + db_info
-    get_cache = state.get("retrieve_cache", False)
-    information = state.get("information", "")
-    if not get_cache:
-        context = retrieve_contexts(
-            collection,
-            state["question"],
-            limit=3,
-        )
-        relevant_questions = []
-        id_to_context = {}
-        for doc in context:
-            id = doc["id"]
-            query = doc["query"]
-            context = doc["context"]
-            relevant_questions.append(f"ID {id}: {query}")
-            id_to_context[id] = context 
-        prompt_input = [HumanMessage(f"User Question: {user_question}\n\nCandidate Questions:\n" + "\n".join(relevant_questions))]
-        question_selection = relevant_questions_selector_prompt.format(messages=prompt_input)
-        response = relevant_questions_selector_llm.invoke(question_selection) 
-        for id in response.selected_ids:
-            doc = id_to_context[id]
-            information += f"{doc}\n\n"
-    if information:
-        messages.append(AIMessage(content=f"The following is information from semantically similar queries. Use this as context: {information}"))
     prompt = contextualiser_prompt.format(messages=messages)
     response = llm.invoke(prompt)
     information = response.content
 
-    return {"messages": [response], "information": information, "retrieve_cache": True}
+    return {"messages": [response], "information": information} 
 
 
 def sufficient_tables(state: State) -> State:
@@ -281,6 +279,18 @@ def query_gen(state: QueryTask) -> State:
         "query": response.query,
     }
 
+def query_gen_with_context(state: QueryTask) -> State:
+    user_question = HumanMessage(content=state["question"])
+    information = AIMessage(content=state["information"])
+    messages = [user_question, information]
+    prompt = query_gen_with_context_prompt.format(messages=messages)
+    response = query_gen_with_context_llm.invoke(prompt)
+    full_response = f"Query: {response.query}\n\nReasoning: {response.reasoning}"
+    return {
+        "messages": [AIMessage(content=full_response)],
+        "query": response.query,
+    }
+
 
 def reducer(state: State) -> State:
     subtasks = AIMessage(content="\n".join(state["query_tasks"]))
@@ -313,21 +323,20 @@ def get_query_execution(state: State) -> State:
 
 
 def final_answer(state: State) -> State:
-    messages = [
-        HumanMessage(content=state["question"]),
-        AIMessage(content=state.get("information", "")),
-        AIMessage(content=state["query"]),
-        state["messages"][-1],
-    ]
-    prompt = answer_and_reasoning_prompt.format(messages=messages)
-    response = llm.invoke(prompt)
     return {
-        "answer": response.content,
-        "messages": [AIMessage(content=response.content)],
+        "messages": [AIMessage(content=state["query"])],
     }
 
 
 # Edges
+
+def sufficient_context(state: State) -> State:
+    information = state["information"]
+    if information:
+        return "query_gen_with_context"
+    else:
+        return "info_sql_database_tool_call"
+    
 def map_query_task(state: State):
     messages = state["messages"]
     return [
@@ -359,7 +368,6 @@ def query_router(state: State) -> State:
         return "react_agent"
 
 def continue_sufficient_tables(state: State) -> State:
-    messages = state["messages"]
     max_retries = state["max_retries"]
     sufficient_tables = state["sufficient_info"]
     if sufficient_tables or max_retries == 0:
@@ -372,22 +380,12 @@ def continue_query_gen(state: State) -> State:
     messages = state["messages"]
     last_message = messages[-1]
     max_retries = state["max_retries"]
-    state["max_retries"] = max_retries
     if max_retries < 0:
         return "failed"
     if last_message.content.startswith("Error:"):
         task = "Fix the error in the query and rewrite the query."
-        state["query_tasks"] = [RemoveMessage(id=message.id) for message in messages]
         state["query"] = ""
-        return Send(
-            "query_gen",
-            {
-                "task": task,
-                "messages": messages,
-                "question": state["question"],
-                "information": state["information"],
-            },
-        )
+        return "query_gen"
     else:
         return "correct_query"
 
@@ -396,6 +394,7 @@ def continue_query_gen(state: State) -> State:
 workflow = StateGraph(State)
 workflow.add_node("react_agent", react_agent)
 workflow.add_node("transform_user_question", transform_user_question)
+workflow.add_node("get_context", get_context)
 workflow.add_node("info_sql_database_tool_call", info_sql_database_tool_call)
 workflow.add_node(
     "info_sql_database_tool", create_tool_node_with_fallback([info_sql_database_tool])
@@ -406,6 +405,7 @@ workflow.add_node("contextualiser", contextualiser)
 workflow.add_node("sufficient_tables", sufficient_tables)
 workflow.add_node("decomposer", decomposer)
 workflow.add_node("query_gen", query_gen)
+workflow.add_node("query_gen_with_context", query_gen_with_context)
 workflow.add_node("reducer", reducer)
 workflow.add_node("get_query_execution", get_query_execution)
 workflow.add_node("query_execute", create_tool_node_with_fallback([db_query_tool]))
@@ -419,7 +419,17 @@ workflow.add_conditional_edges(
       "transform_user_question": "transform_user_question",
     },
 )
-workflow.add_edge("transform_user_question", "info_sql_database_tool_call")
+workflow.add_edge("transform_user_question", "get_context")
+
+workflow.add_conditional_edges(
+    "get_context",
+    sufficient_context,
+    {
+        "info_sql_database_tool_call": "info_sql_database_tool_call",
+        "query_gen_with_context": "query_gen_with_context",
+    },
+)
+
 workflow.add_edge("info_sql_database_tool_call", "info_sql_database_tool")
 workflow.add_edge("info_sql_database_tool", "tables_selector")
 workflow.add_edge("tables_selector", "get_schema_tool")
@@ -434,6 +444,7 @@ workflow.add_conditional_edges(
     },
 )
 #workflow.add_conditional_edges("decomposer", map_query_task, ["query_gen"])
+workflow.add_edge("query_gen_with_context", "get_query_execution")
 workflow.add_edge("query_gen", "get_query_execution")
 #workflow.add_edge("reducer", "get_query_execution")
 workflow.add_edge("get_query_execution", "query_execute")
