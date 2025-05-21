@@ -1,6 +1,9 @@
 import operator
 import re
 from typing import Annotated, Any, TypedDict
+import matplotlib.pyplot as plt
+import io  
+import base64
 
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langchain_community.utilities import SQLDatabase
@@ -11,7 +14,7 @@ from langgraph.constants import Send
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.prebuilt import ToolNode, create_react_agent
-from agents.llm import llm, mini_llm
+from agents.llm import llm, advanced_llm
 from agents.vectorstore import get_collection, insert_data, dense_search, retrieve_contexts
 from agents.sql_agent.prompts import (
     transform_user_question_prompt,
@@ -33,6 +36,10 @@ from agents.sql_agent.prompts import (
     query_router_llm,
     relevant_questions_selector_prompt,
     relevant_questions_selector_llm,
+)
+from agents.sql_agent.schema import (
+    LineGraphInput,
+    BarGraphInput,
 )
 
 from datetime import datetime
@@ -166,6 +173,29 @@ def get_schema_tool(table_name: str) -> str:
     result = re.sub(pattern, "", result)
     result = f"Selected Table {table_name}\n\nSchema: {result}"
     return result
+
+@tool("line_graph_tool", args_schema=LineGraphInput, return_direct=True)
+def line_graph_tool(params: LineGraphInput) -> str:  # noqa: D401
+    """Generate a PNG line graph encoded in base64.
+    Returns a base64‑encoded PNG string so the agent can embed or stream the image directly.
+    """
+    # Plot
+    fig, ax = plt.subplots()
+    ax.plot(params.x, params.y, marker="o")
+    ax.set_title(params.title)
+    ax.set_xlabel(params.x_label)
+    ax.set_ylabel(params.y_label)
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
+
+    # Encode to base64 (no disk I/O)
+    buffer = io.BytesIO()
+    fig.tight_layout()
+    fig.savefig(buffer, format="png", bbox_inches="tight")
+    plt.close(fig)
+    buffer.seek(0)
+    b64_png = base64.b64encode(buffer.read()).decode()
+    return b64_png
+
 
 react_agent = create_react_agent(llm, tools=[list_tables_tool, get_schema_tool])
 
