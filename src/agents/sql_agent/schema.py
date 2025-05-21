@@ -76,3 +76,9 @@ class BarGraphInput(LineGraphInput):
         if categories is not None and values is not None and len(categories) != len(values):
             raise ValueError("categories and values must have the same length")
         return values
+
+class ChartType(BaseModel):
+    """Schema for chart type."""
+    type: Literal["line", "bar"] = Field(
+        description="The type of chart to be created. Can be 'line' or 'bar'."
+    )

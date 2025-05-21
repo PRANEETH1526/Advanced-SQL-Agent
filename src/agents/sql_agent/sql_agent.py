@@ -36,6 +36,8 @@ from agents.sql_agent.prompts import (
     query_router_llm,
     relevant_questions_selector_prompt,
     relevant_questions_selector_llm,
+    chart_generator_system_prompt,
+    chart_generator_llm
 )
 from agents.sql_agent.schema import (
     LineGraphInput,
@@ -374,7 +376,6 @@ def get_query_execution(state: State) -> State:
         ]
     }
 
-
 def final_answer(state: State) -> State:
     return {
         "messages": [AIMessage(content=state["query"])],
@@ -441,7 +442,17 @@ def continue_query_gen(state: State) -> State:
         return "query_gen"
     else:
         return "correct_query"
-
+    
+def graph_generation(state: State) -> State:
+    last_message = state["messages"][-1]
+    prompt = chart_generator_system_prompt.format(messages=state["messages"])
+    chart
+    if response.content == "line graph":
+        return "line_graph_tool"
+    elif response.content == "bar graph":
+        return "bar_graph_tool"
+    else:
+        return "none"
 
 # Build the workflow
 workflow = StateGraph(State)
