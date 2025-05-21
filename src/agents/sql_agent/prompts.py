@@ -1,5 +1,5 @@
 from langchain_core.prompts import ChatPromptTemplate
-from agents.llm import llm, mini_llm
+from agents.llm import llm, advanced_llm
 from agents.sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks, QueryClassification, SelectedQueries
 
 transform_user_question_system = """
@@ -22,7 +22,7 @@ transform_user_question_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-transform_user_question_llm = mini_llm.with_structured_output(TransformUserQuestion)
+transform_user_question_llm = llm.with_structured_output(TransformUserQuestion)
 
 selector_system = """
 You are provided with a user's natural language query alongside a list of table names and their corresponding descriptions. 
@@ -166,7 +166,7 @@ query_gen_with_context_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-query_gen_with_context_llm = llm.with_structured_output(Query)
+query_gen_with_context_llm = advanced_llm.with_structured_output(Query)
 
 decomposer_system = """
 You are an expert SQL developer.
