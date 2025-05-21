@@ -45,40 +45,8 @@ class SelectedQueries(BaseModel):
         description="The reasoning for the selected queries"
     )
 
-class LineGraphInput(BaseModel):
-    """Schema for creating a simple line graph."""
-
-    x: List[float] = Field(..., description="X‑axis values (must match length of y)")
-    y: List[float] = Field(..., description="Y‑axis values (must match length of x)")
-    title: str = Field("Line Graph", description="Figure title")
-    x_label: str = Field("X", description="Label for the X‑axis")
-    y_label: str = Field("Y", description="Label for the Y‑axis")
-
-    @model_validator(mode="before")
-    def check_lengths(cls, values):
-        x, y = values.get("x"), values.get("y")
-        if x is not None and y is not None and len(x) != len(y):
-            raise ValueError("x and y must have the same length")
-        return values
-
-class BarGraphInput(LineGraphInput):
-    """Schema for creating a simple bar graph."""
-
-    categories: List[str] = Field(..., description="Category labels (x‑axis)")
-    values: List[float] = Field(..., description="Bar heights (must match length of categories)")
-    title: str = Field("Bar Graph", description="Figure title")
-    x_label: str = Field("Category", description="Label for the X‑axis")
-    y_label: str = Field("Value", description="Label for the Y‑axis")
-
-    @model_validator(mode="before")
-    def check_lengths(cls, values):
-        categories, values = values.get("categories"), values.get("values")
-        if categories is not None and values is not None and len(categories) != len(values):
-            raise ValueError("categories and values must have the same length")
-        return values
-
 class ChartType(BaseModel):
     """Schema for chart type."""
-    type: Literal["line", "bar"] = Field(
-        description="The type of chart to be created. Can be 'line' or 'bar'."
+    type: Literal["line", "bar", "none"] = Field(
+        description="The type of chart to be created. Can be 'line' or 'bar'. If 'none', no chart will be created."
     )
