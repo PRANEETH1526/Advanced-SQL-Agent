@@ -12,6 +12,7 @@ You will receive a user question and your job is to make the question more clear
 - Resistors, Capacitators, etc are component categories
 
 You are also give the date and time, so if the user question is related to a specific date, you can use that information to make the question more clear.
+For example, if the user question is "What are the POs for the last 3 months?", you can transform it to "What are the POs for the last 3 months from {date}".
 """
 
 transform_user_question_prompt = ChatPromptTemplate.from_messages(
@@ -153,6 +154,7 @@ You are an expert SQL developer.
 You are provided with a user question, and an SQL queries of semantically similar questions that have been asked in the past.
 
 Your job is to analyze and use the provided SQL queries and generate a new MariaDB SQL query that can specifically answer the user question.
+Some queries are the essentially the same as the user question so they just need slight modifications, so in this case, keep the query as is and just modify it to fit the user question.
 
 Output Format: Return a single SQL statement. Do not hallucinate any field names or table names.
 """
