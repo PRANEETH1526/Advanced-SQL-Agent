@@ -39,12 +39,10 @@ from agents.sql_agent.prompts import (
     chart_generator_system_prompt,
     chart_generator_llm
 )
-from agents.sql_agent.schema import (
-    LineGraphInput,
-    BarGraphInput,
-)
+
 
 from datetime import datetime
+from typing import List
 
 DATABASE_URI = "mariadb+pymysql://userconnect@10.1.93.4/cms" 
 
@@ -71,6 +69,7 @@ class State(TypedDict):
     information: str
     query: str
     max_retries: int = 1
+    chart_type: str
     answer: str
 
 
@@ -176,50 +175,70 @@ def get_schema_tool(table_name: str) -> str:
     result = f"Selected Table {table_name}\n\nSchema: {result}"
     return result
 
-@tool("line_graph_tool", args_schema=LineGraphInput, return_direct=True)
-def line_graph_tool(params: LineGraphInput) -> str:  # noqa: D401
+@tool("line_graph_tool") 
+def line_graph_tool(x: List[float | int], y: List[float | int], title: str, x_label: str, y_label: str) -> str:  # noqa: D401
     """Generate a PNG line graph encoded in base64.
+
+    Params: 
+        x (List[float | int]): X‑axis values (must match length of y)
+        y (List[float | int]): Y‑axis values (must match length of x)
+        title (str): Figure title
+        x_label (str): Label for the X‑axis
+        y_label (str): Label for the Y‑axis
+    
     Returns a base64‑encoded PNG string so the agent can embed or stream the image directly.
     """
     # Plot
     fig, ax = plt.subplots()
-    ax.plot(params.x, params.y, marker="o")
-    ax.set_title(params.title)
-    ax.set_xlabel(params.x_label)
-    ax.set_ylabel(params.y_label)
+    ax.plot(x, y, marker="o")
+    ax.set_title(title)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
 
     # Encode to base64 (no disk I/O)
     buffer = io.BytesIO()
     fig.tight_layout()
     fig.savefig(buffer, format="png", bbox_inches="tight")
+    fig.savefig("charts/line_graph.png", format="png", bbox_inches="tight")
     plt.close(fig)
     buffer.seek(0)
     b64_png = base64.b64encode(buffer.read()).decode()
-    return b64_png
+    markdown = f"![{title}](data:image/png;base64,{b64_png})"
+    return markdown
 
-@tool("bar_graph", args_schema=BarGraphInput, return_direct=True)
-def bar_graph_tool(params: BarGraphInput) -> str:  # noqa: D401
+@tool("bar_graph")
+def bar_graph_tool(categories: List[str], values: List[float | int], title: str, x_label: str, y_label: str) -> str:  # noqa: D401
     """Generate a PNG bar chart encoded in base64.
+
+    Params:
+        categories (List[str]): Category labels (x‑axis)
+        values (List[float | int]): Y‑axis values (must match length of categories)
+        title (str): Figure title
+        x_label (str): Label for the X‑axis
+        y_label (str): Label for the Y‑axis
+
     Returns a base64‑encoded PNG string so the agent can embed or stream the image directly.
     """
     # Plot
     fig, ax = plt.subplots()
-    ax.bar(params.categories, params.values)
-    ax.set_title(params.title)
-    ax.set_xlabel(params.x_label)
-    ax.set_ylabel(params.y_label)
-    ax.set_xticklabels(params.categories, rotation=45, ha="right")
+    ax.bar(categories, values)
+    ax.set_title(title)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_xticklabels(categories, rotation=45, ha="right")
     ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.7)
 
     # Encode to base64 (no disk I/O)
     buffer = io.BytesIO()
     fig.tight_layout()
     fig.savefig(buffer, format="png", bbox_inches="tight")
+    fig.savefig("charts/bar_graph.png", format="png", bbox_inches="tight")
     plt.close(fig)
     buffer.seek(0)
     b64_png = base64.b64encode(buffer.read()).decode()
-    return b64_png
+    markdown = f"![{title}](data:image/png;base64,{b64_png})"
+    return markdown
 
 react_agent = create_react_agent(llm, tools=[list_tables_tool, get_schema_tool])
 graph_agent = create_react_agent(llm, tools=[line_graph_tool, bar_graph_tool])
@@ -376,6 +395,22 @@ def get_query_execution(state: State) -> State:
         ]
     }
 
+def chart_generation(state: State) -> State:
+    data = state["messages"][-1]
+    user_question = HumanMessage(content=state["question"])
+    query = state["query"]
+    prompt = chart_generator_system_prompt.format(messages=[user_question, data])
+    chart_type = chart_generator_llm.invoke(prompt).type
+    response = AIMessage(content="Could not generate chart")
+    if chart_type == "line":
+        line_model = llm.bind_tools([line_graph_tool], tool_choice="required")
+        response = line_model.invoke(f"Generate a line graph based on the following SQL Query and Data:\n\nQuery {query}\n\nData {data}")
+    elif chart_type == "bar":
+        bar_model = llm.bind_tools([bar_graph_tool], tool_choice="required")
+        response = bar_model.invoke(f"Generate a bar graph based on the following SQL Query and Data:\n\nQuery {query}\n\nData {data}")
+    return {"messages": [response], "chart_type": chart_type}
+
+
 def final_answer(state: State) -> State:
     return {
         "messages": [AIMessage(content=state["query"])],
@@ -443,18 +478,16 @@ def continue_query_gen(state: State) -> State:
     else:
         return "correct_query"
     
-def graph_generation(state: State) -> State:
-    last_message = state["messages"][-1]
-    prompt = chart_generator_system_prompt.format(messages=state["messages"])
-    chart
-    if response.content == "line graph":
+def generate_chart(state: State) -> State:
+    chart_type = state["chart_type"]
+    if chart_type == "line":
         return "line_graph_tool"
-    elif response.content == "bar graph":
+    elif chart_type == "bar":
         return "bar_graph_tool"
     else:
-        return "none"
-
-# Build the workflow
+        return "None"
+    
+    # Build the workflow
 workflow = StateGraph(State)
 workflow.add_node("react_agent", react_agent)
 workflow.add_node("transform_user_question", transform_user_question)
@@ -473,6 +506,9 @@ workflow.add_node("query_gen_with_context", query_gen_with_context)
 workflow.add_node("reducer", reducer)
 workflow.add_node("get_query_execution", get_query_execution)
 workflow.add_node("query_execute", create_tool_node_with_fallback([db_query_tool]))
+workflow.add_node("line_graph_tool", create_tool_node_with_fallback([line_graph_tool]))
+workflow.add_node("bar_graph_tool", create_tool_node_with_fallback([bar_graph_tool]))
+workflow.add_node("chart_generation", chart_generation)
 workflow.add_node("final_answer", final_answer)
 
 workflow.add_conditional_edges(
@@ -517,10 +553,22 @@ workflow.add_conditional_edges(
     continue_query_gen,
     {
         "query_gen": "query_gen",
-        "correct_query": "final_answer",
+        "correct_query": "chart_generation",
         "failed": END,
     },
 )
+workflow.add_conditional_edges(
+    "chart_generation",
+    generate_chart,
+    {
+        "line_graph_tool": "line_graph_tool",
+        "bar_graph_tool": "bar_graph_tool",
+        "None": END,
+    },
+)
+workflow.add_edge("line_graph_tool", "final_answer")
+workflow.add_edge("bar_graph_tool", "final_answer")
+workflow.add_edge("react_agent", END)
 workflow.add_edge("final_answer", END)
 
 sql_agent = workflow.compile()

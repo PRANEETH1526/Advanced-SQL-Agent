@@ -6,7 +6,19 @@ def read_file(file_path: str) -> str:
     with open(file_path, "r") as file:
         return file.read()
 
-transform_user_question_system = read_file("/server/intelliweb/ai_prompt_files/sql_agent_transform_user_question.txt")
+transform_user_question_system = """
+
+You will receive a user question and your job is to make the question more clear. Don't add more to the question. Here is some context to help you:
+- The company is an electronics manufacturing company, assembling parts onto PCBs, and assembling those into products.
+- POs are Purchase Orders
+- IDs refer to component IDs unless specified otherwise
+- 'Purchase' and 'Order' are interchangeable terms
+- 'Parts' and 'Components' are interchangeable terms
+- Resistors, Capacitators, etc are component categories
+
+You are also give the date and time, so if the user question is related to a specific date, you can use that information to make the question more clear.
+For example, if the user question is "What are the POs for the last 3 months?", you can transform it to "What are the POs for the last 3 months from (date)".
+"""
 
 transform_user_question_prompt = ChatPromptTemplate.from_messages(
     [
@@ -141,7 +153,16 @@ query_gen_prompt = ChatPromptTemplate.from_messages(
 
 query_gen_llm = llm.with_structured_output(Query)
 
-query_gen_with_context_system = read_file("/server/intelliweb/ai_prompt_files/sql_agent_query_gen_with_context.txt")
+query_gen_with_context_system = """
+You are an expert SQL developer.
+
+You are provided with a user question, and an SQL queries of semantically similar questions that have been asked in the past.
+
+Your job is to analyze and use the provided SQL queries and generate a new MariaDB SQL query that can specifically answer the user question.
+Some queries are the essentially the same as the user question so they just need slight modifications, so in this case, keep the query as is and just modify it to fit the user question.
+
+Output Format: Return a single SQL statement. Do not hallucinate any field names or table names.
+"""
 
 query_gen_with_context_prompt = ChatPromptTemplate.from_messages(
     [
@@ -150,7 +171,7 @@ query_gen_with_context_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-query_gen_with_context_llm = advanced_llm.with_structured_output(Query)
+query_gen_with_context_llm = llm.with_structured_output(Query)
 
 decomposer_system = """
 You are an expert SQL developer.
@@ -256,8 +277,24 @@ query_router_prompt = ChatPromptTemplate.from_messages(
 
 query_router_llm = llm.with_structured_output(QueryClassification)
 
-relevant_questions_selector_system = read_file("/server/intelliweb/ai_prompt_files/sql_agent_get_context.txt")
+relevant_questions_selector_system = """
+You are an LLM-powered RERANKER.
 
+## Inputs
+- **user_question**: A single natural-language query from the user.
+- **candidate_questions**: A list of previously-asked questions (strings) along with their IDs that may or may not be relevant.
+
+## Task
+For each candidate question, judge its semantic similarity to **user_question** and decide whether it is *somewhat related* (i.e. likely to help answer or clarify the user's need).
+Each of these candidate questions is a reference into an SQL library. The relevant SQL queries will be provided as context in a later step, to construct a new query to answer the user's question.
+Note that specific numbers in the query should not be used to judge relevance.
+To fully answer the user question, multiple responses may need to be combined, so you will need to consider whether the chosen set of candidates fully covers the scope of the user question. You may need to include only partially relevant questions to allow the whole question to be answered.
+Err on the side of inclusion. Discard candidates that are clearly irrelevant.
+
+## Output
+Return a list of the reranked candidate question IDs sorted by how similar/helpful they are for the user question — or an empty list (`[]`) 
+Also return a reasoning for the selected IDs. The reasoning should be a single sentence that explains why the selected IDs are relevant to the user question.
+"""
 relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", relevant_questions_selector_system),

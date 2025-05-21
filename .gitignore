@@ -12,5 +12,10 @@ wheels/
 .env
 
 # Database files
-*.db
+*.db*
 *.lock
+*.pckl
+
+#ignore prompt files
+src/agents/sql_agent/prompts.py
+
