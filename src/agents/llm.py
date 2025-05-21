@@ -27,7 +27,6 @@ advanced_llm = AzureChatOpenAI(
     api_version=os.getenv("AZURE_OPENAI_ADVANCED_API_VERSION"),
     azure_endpoint=os.getenv("AZURE_OPENAI_ADVANCED_ENDPOINT"),
     api_key=os.getenv("AZURE_OPENAI_ADVANCED_API_KEY"),
-    temperature=0,
 )
 
 embeddings = AzureOpenAIEmbeddings(
