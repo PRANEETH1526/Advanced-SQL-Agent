@@ -10,6 +10,8 @@ You will receive a user question and your job is to make the question more clear
 - 'Purchase' and 'Order' are interchangeable terms
 - 'Parts' and 'Components' are interchangeable terms
 - Resistors, Capacitators, etc are component categories
+
+You are also give the date and time, so if the user question is related to a specific date, you can use that information to make the question more clear.
 """
 
 transform_user_question_prompt = ChatPromptTemplate.from_messages(
