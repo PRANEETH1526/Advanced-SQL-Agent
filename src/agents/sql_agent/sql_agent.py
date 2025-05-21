@@ -238,7 +238,7 @@ def get_context(state: State) -> State:
     context = retrieve_contexts(
             collection,
             state["question"],
-            limit=3,
+            limit=8,
         )
     relevant_questions = []
     id_to_context = {}

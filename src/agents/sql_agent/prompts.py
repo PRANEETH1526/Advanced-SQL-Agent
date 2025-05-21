@@ -8,7 +8,7 @@ def read_file(file_path: str) -> str:
 
 transform_user_question_system = read_file("/server/intelliweb/ai_prompt_files/sql_agent_transform_user_question.txt")
 
-transform_user_question_prompt = ChatPromptTemplate.from_messages(
+transform_user_question_prompt = ChatPromptTemplate(
     [
         ("system", transform_user_question_system),
         ("placeholder", "{messages}"),
@@ -132,7 +132,7 @@ Document the Correction: Include brief inline comments in the query to describe 
 Output Format: Return the corrected SQL query as a single statement. 
 """
 
-query_gen_prompt = ChatPromptTemplate.from_messages(
+query_gen_prompt = ChatPromptTemplate(
     [
         ("system", query_gen_system),
         ("placeholder", "{messages}"),
@@ -143,7 +143,7 @@ query_gen_llm = llm.with_structured_output(Query)
 
 query_gen_with_context_system = read_file("/server/intelliweb/ai_prompt_files/sql_agent_query_gen_with_context.txt")
 
-query_gen_with_context_prompt = ChatPromptTemplate.from_messages(
+query_gen_with_context_prompt = ChatPromptTemplate(
     [
         ("system", query_gen_with_context_system),
         ("placeholder", "{messages}"),
