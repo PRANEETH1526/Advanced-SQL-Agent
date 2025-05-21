@@ -297,4 +297,4 @@ relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-relevant_questions_selector_llm = llm.with_structured_output(SelectedQueries)
+relevant_questions_selector_llm = advanced_llm.with_structured_output(SelectedQueries)
