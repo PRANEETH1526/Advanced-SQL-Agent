@@ -196,8 +196,31 @@ def line_graph_tool(params: LineGraphInput) -> str:  # noqa: D401
     b64_png = base64.b64encode(buffer.read()).decode()
     return b64_png
 
+@tool("bar_graph", args_schema=BarGraphInput, return_direct=True)
+def bar_graph_tool(params: BarGraphInput) -> str:  # noqa: D401
+    """Generate a PNG bar chart encoded in base64.
+    Returns a base64‑encoded PNG string so the agent can embed or stream the image directly.
+    """
+    # Plot
+    fig, ax = plt.subplots()
+    ax.bar(params.categories, params.values)
+    ax.set_title(params.title)
+    ax.set_xlabel(params.x_label)
+    ax.set_ylabel(params.y_label)
+    ax.set_xticklabels(params.categories, rotation=45, ha="right")
+    ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.7)
+
+    # Encode to base64 (no disk I/O)
+    buffer = io.BytesIO()
+    fig.tight_layout()
+    fig.savefig(buffer, format="png", bbox_inches="tight")
+    plt.close(fig)
+    buffer.seek(0)
+    b64_png = base64.b64encode(buffer.read()).decode()
+    return b64_png
 
 react_agent = create_react_agent(llm, tools=[list_tables_tool, get_schema_tool])
+graph_agent = create_react_agent(llm, tools=[line_graph_tool, bar_graph_tool])
 
 def transform_user_question(state: State) -> State:
     prompt = transform_user_question_prompt.format(messages=state["messages"])
@@ -455,7 +478,7 @@ workflow.add_conditional_edges(
     "get_context",
     sufficient_context,
     {
-        "info_sql_database_tool_call": "info_sql_database_tool_call",
+        "info_sql_database_tool_call": END,
         "query_gen_with_context": "query_gen_with_context",
     },
 )
