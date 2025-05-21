@@ -171,7 +171,7 @@ react_agent = create_react_agent(llm, tools=[list_tables_tool, get_schema_tool])
 
 def transform_user_question(state: State) -> State:
     prompt = transform_user_question_prompt.format(messages=state["messages"])
-    response = transform_user_question_llm.invoke(prompt)
+    response = transform_user_question_llm.invoke(f"Current Date: {datetime.now()}\n\n{prompt}")
     return {
         "question": response.question,
         "messages": [AIMessage(content=response.question)],
