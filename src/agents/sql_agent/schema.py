@@ -41,6 +41,9 @@ class SelectedQueries(BaseModel):
     selected_ids: list[int] = Field(
         description="The list of ids of the selected relevant queries"
     )
+    reasoning: str = Field(
+        description="The reasoning for the selected queries"
+    )
 
 class LineGraphInput(BaseModel):
     """Schema for creating a simple line graph."""

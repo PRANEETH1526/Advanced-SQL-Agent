@@ -285,10 +285,11 @@ For each candidate question, judge its semantic similarity to **user_question** 
 Each of these candidate questions is a reference into an SQL library. The relevant SQL queries will be provided as context in a later step, to construct a new query to answer the user's question.
 Note that specific numbers in the query should not be used to judge relevance.
 To fully answer the user question, multiple responses may need to be combined, so you will need to consider whether the chosen set of candidates fully covers the scope of the user question. You may need to include only partially relevant questions to allow the whole question to be answered.
-Discard candidates that are clearly irrelevant
+Err on the side of inclusion. Discard candidates that are clearly irrelevant.
 
 ## Output
 Return a list of the reranked candidate question IDs sorted by how similar/helpful they are for the user question — or an empty list (`[]`) 
+Also return a reasoning for the selected IDs. The reasoning should be a single sentence that explains why the selected IDs are relevant to the user question.
 """
 relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
     [
@@ -297,4 +298,4 @@ relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-relevant_questions_selector_llm = advanced_llm.with_structured_output(SelectedQueries)
+relevant_questions_selector_llm = llm.with_structured_output(SelectedQueries)
