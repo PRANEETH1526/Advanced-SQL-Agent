@@ -1,10 +1,11 @@
 from langchain_core.prompts import ChatPromptTemplate
 from agents.llm import llm, advanced_llm
-from agents.sql_agent.structured_outputs import TransformUserQuestion, SufficientTables, Query, Subtasks, QueryClassification, SelectedQueries
+from agents.sql_agent.schema import TransformUserQuestion, SufficientTables, Query, Subtasks, QueryClassification, SelectedQueries
 
 transform_user_question_system = """
 
 You will receive a user question and your job is to make the question more clear. Don't add more to the question. Here is some context to help you:
+- The company is an electronics manufacturing company, assembling parts onto PCBs, and assembling those into products.
 - POs are Purchase Orders
 - IDs refer to component IDs unless specified otherwise
 - 'Purchase' and 'Order' are interchangeable terms
@@ -280,9 +281,11 @@ You are an LLM-powered RERANKER.
 - **candidate_questions**: A list of previously-asked questions (strings) along with their IDs that may or may not be relevant.
 
 ## Task
-For each candidate question, judge its semantic similarity to **user_question** and decide whether it is *somewhat related* (i.e. likely to help answer or clarify the user's need).  
-If there are any keywords that match the user question, consider them as relevant.
-Discard every candidate that is clearly irrelevant and have any similarity to the user question.
+For each candidate question, judge its semantic similarity to **user_question** and decide whether it is *somewhat related* (i.e. likely to help answer or clarify the user's need).
+Each of these candidate questions is a reference into an SQL library. The relevant SQL queries will be provided as context in a later step, to construct a new query to answer the user's question.
+Note that specific numbers in the query should not be used to judge relevance.
+To fully answer the user question, multiple responses may need to be combined, so you will need to consider whether the chosen set of candidates fully covers the scope of the user question. You may need to include only partially relevant questions to allow the whole question to be answered.
+Discard candidates that are clearly irrelevant
 
 ## Output
 Return a list of the reranked candidate question IDs sorted by how similar/helpful they are for the user question — or an empty list (`[]`) 
