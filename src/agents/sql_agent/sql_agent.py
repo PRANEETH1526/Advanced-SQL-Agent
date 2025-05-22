@@ -243,8 +243,17 @@ def bar_graph_tool(categories: List[str], values: List[float | int], title: str,
 react_agent = create_react_agent(llm, tools=[list_tables_tool, get_schema_tool])
 graph_agent = create_react_agent(llm, tools=[line_graph_tool, bar_graph_tool])
 
+def read_file(file_path: str) -> str:
+    with open(file_path, "r") as file:
+        return file.read()
+
 def transform_user_question(state: State) -> State:
-    prompt = transform_user_question_prompt.format(messages=state["messages"])
+    try:
+        system_prompt = read_file("/server/intelliweb/ai_prompt_files/sql_agent_transform_user_question.txt")
+    except FileNotFoundError:
+        # not found, use the default prompt
+        system_prompt = transform_user_question_prompt
+    prompt = system_prompt.format(messages=state["messages"])
     response = transform_user_question_llm.invoke(f"Current Date: {datetime.now()}\n\n{prompt}")
     return {
         "question": response.question,
@@ -268,7 +277,12 @@ def get_context(state: State) -> State:
         relevant_questions.append(f"ID {id}: {query}")
         id_to_context[id] = context 
     prompt_input = [HumanMessage(f"User Question: {user_question}\n\nCandidate Questions:\n" + "\n".join(relevant_questions))]
-    question_selection = relevant_questions_selector_prompt.format(messages=prompt_input)
+    try:
+        system_prompt = read_file("/server/intelliweb/ai_prompt_files/sql_agent_get_context.txt")
+    except FileNotFoundError:
+        # not found, use the default prompt
+        system_prompt = relevant_questions_selector_prompt
+    question_selection = system_prompt.format(messages=prompt_input)
     response = relevant_questions_selector_llm.invoke(question_selection) 
     information = ""
     for id in response.selected_ids:
@@ -357,7 +371,12 @@ def query_gen_with_context(state: QueryTask) -> State:
     user_question = HumanMessage(content=state["question"])
     information = AIMessage(content=state["information"])
     messages = [user_question, information]
-    prompt = query_gen_with_context_prompt.format(messages=messages)
+    try:
+        system_prompt = read_file("/server/intelliweb/ai_prompt_files/sql_agent_query_gen_with_context.txt")
+    except FileNotFoundError:
+        # not found, use the default prompt
+        system_prompt = query_gen_with_context_prompt
+    prompt = system_prompt.format(messages=messages)
     response = query_gen_with_context_llm.invoke(prompt)
     full_response = f"Query: {response.query}\n\nReasoning: {response.reasoning}"
     return {
