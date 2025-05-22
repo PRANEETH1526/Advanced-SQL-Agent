@@ -268,6 +268,11 @@ def get_context(state: State) -> State:
             state["question"],
             limit=8,
         )
+    if not context:
+        return {
+            "messages": [AIMessage(content="No context found")],
+            "information": "",
+        }
     relevant_questions = []
     id_to_context = {}
     for doc in context:
