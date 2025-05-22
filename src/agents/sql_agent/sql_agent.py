@@ -43,6 +43,8 @@ from agents.sql_agent.prompts import (
 
 from datetime import datetime
 from typing import List
+from langchain_core.prompts import ChatMessagePromptTemplate
+from langchain_core.messages import SystemMessage
 
 DATABASE_URI = "mariadb+pymysql://userconnect@10.1.93.4/cms" 
 
@@ -250,6 +252,14 @@ def read_file(file_path: str) -> str:
 def transform_user_question(state: State) -> State:
     try:
         system_prompt = read_file("/server/intelliweb/ai_prompt_files/sql_agent_transform_user_question.txt")
+        system_prompt = ChatMessagePromptTemplate.from_messages(
+            [
+                SystemMessage(
+                    content=system_prompt,
+                ),
+                ("placeholder", "{messages}"),
+            ]
+        )
     except FileNotFoundError:
         # not found, use the default prompt
         system_prompt = transform_user_question_prompt
@@ -284,6 +294,14 @@ def get_context(state: State) -> State:
     prompt_input = [HumanMessage(f"User Question: {user_question}\n\nCandidate Questions:\n" + "\n".join(relevant_questions))]
     try:
         system_prompt = read_file("/server/intelliweb/ai_prompt_files/sql_agent_get_context.txt")
+        system_prompt = ChatMessagePromptTemplate.from_messages(
+            [
+                SystemMessage(
+                    content=system_prompt,
+                ),
+                ("placeholder", "{messages}"),
+            ]
+        )
     except FileNotFoundError:
         # not found, use the default prompt
         system_prompt = relevant_questions_selector_prompt
@@ -378,6 +396,14 @@ def query_gen_with_context(state: QueryTask) -> State:
     messages = [user_question, information]
     try:
         system_prompt = read_file("/server/intelliweb/ai_prompt_files/sql_agent_query_gen_with_context.txt")
+        system_prompt = ChatMessagePromptTemplate.from_messages(
+            [
+                SystemMessage(
+                    content=system_prompt,
+                ),
+                ("placeholder", "{messages}"),
+            ]
+        )
     except FileNotFoundError:
         # not found, use the default prompt
         system_prompt = query_gen_with_context_prompt
