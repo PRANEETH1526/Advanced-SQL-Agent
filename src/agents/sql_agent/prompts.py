@@ -16,7 +16,7 @@ You are also give the date and time, so if the user question is related to a spe
 For example, if the user question is "What are the POs for the last 3 months?", you can transform it to "What are the POs for the last 3 months from (date)".
 """
 
-transform_user_question_prompt = ChatPromptTemplate(
+transform_user_question_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", transform_user_question_system),
         ("placeholder", "{messages}"),
@@ -160,7 +160,7 @@ Some queries are the essentially the same as the user question so they just need
 Output Format: Return a single SQL statement. Do not hallucinate any field names or table names.
 """
 
-query_gen_with_context_prompt = ChatPromptTemplate(
+query_gen_with_context_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", query_gen_with_context_system),
         ("placeholder", "{messages}"),
