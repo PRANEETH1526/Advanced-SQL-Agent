@@ -42,8 +42,6 @@ def langchain_to_chat_message(message: BaseMessage) -> ChatMessage:
             ai_message = ChatMessage(
                 type="ai",
                 content=convert_message_content_to_string(message.content),
-                response_metadata=message.to_json(),
-
             )
             if message.tool_calls:
                 ai_message.tool_calls = message.tool_calls
@@ -55,7 +53,6 @@ def langchain_to_chat_message(message: BaseMessage) -> ChatMessage:
                 type="tool",
                 content=convert_message_content_to_string(message.content),
                 tool_call_id=message.tool_call_id,
-                response_metadata=message.to_json(),
             )
             return tool_message
         case LangchainChatMessage():
