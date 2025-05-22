@@ -148,8 +148,6 @@ def db_query_tool(query: str) -> str:
             "Error: Query failed. Please rewrite your query and try again."
             + f"\n\nDetails:{result}"
         )
-    if len(result) > 2000:
-        return result[:2000] + "..."
     return result
 
 
