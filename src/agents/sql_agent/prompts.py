@@ -1,4 +1,5 @@
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import SystemMessage
 from agents.llm import llm
 from agents.sql_agent.schema import TransformUserQuestion, SufficientTables, SQL, Subtasks, QueryClassification, QuerySelection, ChartType
 
@@ -18,7 +19,7 @@ For example, if the user question is "What are the POs for the last 3 months?", 
 
 transform_user_question_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", transform_user_question_system),
+        SystemMessage(content=transform_user_question_system),
         ("placeholder", "{messages}"),
     ]
 )
@@ -48,7 +49,7 @@ Call the get_schema_tool to get the schema of these selected tables.
 
 selector_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", selector_system),
+        SystemMessage(content=selector_system),
         ("placeholder", "{messages}"),
     ]
 )
@@ -162,7 +163,7 @@ Output Format: Return a single SQL statement. Do not hallucinate any field names
 
 query_gen_with_context_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", query_gen_with_context_system),
+        SystemMessage(content=query_gen_with_context_system),
         ("placeholder", "{messages}"),
     ]
 )
@@ -293,7 +294,7 @@ Also return a reasoning for the selected IDs. The reasoning should be a single s
 """
 relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", relevant_questions_selector_system),
+        SystemMessage(content=relevant_questions_selector_system),
         ("placeholder", "{messages}"),
     ]
 )
