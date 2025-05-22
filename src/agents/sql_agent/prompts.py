@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 from agents.llm import llm
-from agents.sql_agent.schema import TransformUserQuestion, SufficientTables, Query, Subtasks, QueryClassification, SelectedQueries, ChartType
+from agents.sql_agent.schema import TransformUserQuestion, SufficientTables, SQL, Subtasks, QueryClassification, QuerySelection, ChartType
 
 transform_user_question_system = """
 
@@ -147,7 +147,7 @@ query_gen_prompt = ChatPromptTemplate(
     ]
 )
 
-query_gen_llm = llm.with_structured_output(Query)
+query_gen_llm = llm.with_structured_output(SQL)
 
 query_gen_with_context_system = """
 You are an expert SQL developer.
@@ -167,7 +167,7 @@ query_gen_with_context_prompt = ChatPromptTemplate(
     ]
 )
 
-query_gen_with_context_llm = llm.with_structured_output(Query)
+query_gen_with_context_llm = llm.with_structured_output(SQL)
 
 decomposer_system = """
 You are an expert SQL developer.
@@ -221,7 +221,7 @@ reducer_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-reducer_llm = llm.with_structured_output(Query)
+reducer_llm = llm.with_structured_output(SQL)
 
 answer_and_reasoning_system = """
 You are an advanced reasoning agent.
@@ -298,7 +298,7 @@ relevant_questions_selector_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-relevant_questions_selector_llm = llm.with_structured_output(SelectedQueries)
+relevant_questions_selector_llm = llm.with_structured_output(QuerySelection)
 
 chart_generator_system = """
 You will be given a user question, and the results of an SQL query that has been executed. 

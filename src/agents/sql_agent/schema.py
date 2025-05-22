@@ -19,9 +19,9 @@ class ContextInformation(BaseModel):
     )
 
 
-class Query(BaseModel):
-    query: str = Field(description="The SQL query to be executed")
-    reasoning: str = Field(description="The reasoning for the query")
+class SQL(BaseModel):
+    SQL: str = Field(description="The generated SQL query to be generated")
+    reasoning: str = Field(description="How the SQL was generated")
 
 class SufficientTables(BaseModel):
     sufficiency_decision: bool = Field(
@@ -37,12 +37,12 @@ class QueryClassification(BaseModel):
         description="The classification of the user question"
     )
 
-class SelectedQueries(BaseModel):
-    selected_ids: list[int] = Field(
-        description="The list of ids of the selected relevant queries"
+class QuerySelection(BaseModel):
+    ids: list[int] = Field(
+        description="The list of ids of the selected queries that are relevant to the user question"
     )
     reasoning: str = Field(
-        description="The reasoning for the selected queries"
+        description="A brief reasoning for the selected queries"
     )
 
 class ChartType(BaseModel):

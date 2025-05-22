@@ -285,7 +285,7 @@ def get_context(state: State) -> State:
     question_selection = system_prompt.format(messages=prompt_input)
     response = relevant_questions_selector_llm.invoke(question_selection) 
     information = ""
-    for id in response.selected_ids:
+    for id in response.ids:
         doc = id_to_context[id]
         information += f"{doc}\n\n" 
     return {"information": information, "messages": [AIMessage(content=f"Retrieved Context: {information}")]}
@@ -361,10 +361,10 @@ def query_gen(state: QueryTask) -> State:
     prompt = query_gen_prompt.format(messages=messages)
     response = query_gen_llm.invoke(prompt)
 
-    full_response = f"Query: {response.query}\n\nReasoning: {response.reasoning}"
+    full_response = f"Query: {response.SQL}\n\nReasoning: {response.reasoning}"
     return {
         "messages": [AIMessage(content=full_response)],
-        "query": response.query,
+        "query": response.SQL,
     }
 
 def query_gen_with_context(state: QueryTask) -> State:
@@ -378,10 +378,10 @@ def query_gen_with_context(state: QueryTask) -> State:
         system_prompt = query_gen_with_context_prompt
     prompt = system_prompt.format(messages=messages)
     response = query_gen_with_context_llm.invoke(prompt)
-    full_response = f"Query: {response.query}\n\nReasoning: {response.reasoning}"
+    full_response = f"Query: {response.SQL}\n\nReasoning: {response.reasoning}"
     return {
         "messages": [AIMessage(content=full_response)],
-        "query": response.query,
+        "query": response.SQL,
     }
 
 
@@ -393,9 +393,9 @@ def reducer(state: State) -> State:
     messages = [user_question, information, subtasks, sql_queries]
     prompt = reducer_prompt.format(messages=messages)
     response = reducer_llm.invoke(prompt)
-    full_response = f"Query: {response.query}\n\nReasoning: {response.reasoning}"
-    state["query"] = response.query
-    return {"query": response.query, "messages": [AIMessage(content=full_response)]}
+    full_response = f"Query: {response.SQL}\n\nReasoning: {response.reasoning}"
+    state["query"] = response.SQL
+    return {"query": response.SQL, "messages": [AIMessage(content=full_response)]}
 
 
 def get_query_execution(state: State) -> State:
