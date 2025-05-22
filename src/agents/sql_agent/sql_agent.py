@@ -309,7 +309,7 @@ def get_context(state: State) -> State:
     for id in response.ids:
         doc = id_to_context[id]
         information += f"{doc}\n\n" 
-    return {"information": information, "messages": [AIMessage(content=f"Retrieved Context: {information}")]}
+    return {"information": information, "messages": [AIMessage(content=f"Retrieved Context:\n\n{information}")]}
 
 def selector(state: State) -> State:
     user_question = HumanMessage(content=state["question"])
