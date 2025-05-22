@@ -104,6 +104,10 @@ class ChatMessage(BaseModel):
         description="Custom message data.",
         default={},
     )
+    node: Any | None = Field(
+        description="Node that generated this message.",
+        default=None,
+    )
 
     def pretty_repr(self) -> str:
         """Get a pretty representation of the message."""
@@ -215,36 +219,4 @@ class DeleteContextResponse(BaseModel):
         description="ID of the deleted context.",
     )
     status: Literal["success"] = "success"
-
-class LineGraphInput(BaseModel):
-    """Schema for creating a simple line graph."""
-
-    x: List[float] = Field(..., description="X‑axis values (must match length of y)")
-    y: List[float] = Field(..., description="Y‑axis values (must match length of x)")
-    title: str = Field("Line Graph", description="Figure title")
-    x_label: str = Field("X", description="Label for the X‑axis")
-    y_label: str = Field("Y", description="Label for the Y‑axis")
-
-    @model_validator(mode="before")
-    def check_lengths(cls, values):
-        x, y = values.get("x"), values.get("y")
-        if x is not None and y is not None and len(x) != len(y):
-            raise ValueError("x and y must have the same length")
-        return values
-
-class BarGraphInput(BaseModel):
-    """Schema for creating a simple bar graph."""
-
-    x: List[str] = Field(..., description="X‑axis values (must match length of y)")
-    y: List[float] = Field(..., description="Y‑axis values (must match length of x)")
-    title: str = Field("Bar Graph", description="Figure title")
-    x_label: str = Field("X", description="Label for the X‑axis")
-    y_label: str = Field("Y", description="Label for the Y‑axis")
-
-    @model_validator(mode="before")
-    def check_lengths(cls, values):
-        x, y = values.get("x"), values.get("y")
-        if x is not None and y is not None and len(x) != len(y):
-            raise ValueError("x and y must have the same length")
-        return values
 

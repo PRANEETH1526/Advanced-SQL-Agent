@@ -219,16 +219,17 @@ async def message_generator(
                         continue
                     updates = updates or {}
                     update_messages = updates.get("messages", [])
-                    new_messages.extend(update_messages)
+                    new_messages.extend((node, m) for m in update_messages)
 
             if stream_mode == "custom":
                 new_messages = [event]
 
-            for message in new_messages:
+            for node, message in new_messages:
                 try:
                     chat_message = langchain_to_chat_message(message)
                     chat_message.run_id = str(run_id)
                     chat_message.thread_id = str(thread_id)
+                    chat_message.node = node
                 except Exception as e:
                     logger.error(f"Error parsing message: {e}")
                     yield f"data: {json.dumps({'type': 'error', 'content': 'Unexpected error'})}\n\n"
