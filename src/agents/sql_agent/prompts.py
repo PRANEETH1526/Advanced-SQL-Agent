@@ -141,7 +141,7 @@ Document the Correction: Include brief inline comments in the query to describe 
 Output Format: Return the corrected SQL query as a single statement. 
 """
 
-query_gen_prompt = ChatPromptTemplate(
+query_gen_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", query_gen_system),
         ("placeholder", "{messages}"),
