@@ -262,7 +262,7 @@ def transform_user_question(state: State) -> State:
         # not found, use the default prompt
         system_prompt = transform_user_question_prompt
     prompt = system_prompt.format(messages=state["messages"])
-    response = transform_user_question_llm.invoke(f"Current Date: {datetime.now()}\n\n{prompt}")
+    response = transform_user_question_llm.invoke(f"Current Date: {datetime.now()}\n\n{prompt}", config={"metadata": {"node": "transform_user_question"}})
     return {
         "question": response.question,
         "messages": [AIMessage(content=response.question)],
@@ -304,7 +304,7 @@ def get_context(state: State) -> State:
         # not found, use the default prompt
         system_prompt = relevant_questions_selector_prompt
     question_selection = system_prompt.format(messages=prompt_input)
-    response = relevant_questions_selector_llm.invoke(question_selection) 
+    response = relevant_questions_selector_llm.invoke(question_selection, config={"metadata": {"node": "get_context"}}) 
     information = ""
     for id in response.ids:
         doc = id_to_context[id]
@@ -406,7 +406,7 @@ def query_gen_with_context(state: QueryTask) -> State:
         # not found, use the default prompt
         system_prompt = query_gen_with_context_prompt
     prompt = system_prompt.format(messages=messages)
-    response = query_gen_with_context_llm.invoke(prompt)
+    response = query_gen_with_context_llm.invoke(prompt, config={"metadata": {"node": "query_gen_with_context"}})
     full_response = f"Query: {response.SQL}\n\nReasoning: {response.reasoning}"
     return {
         "messages": [AIMessage(content=full_response)],
